@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"sync"
 	"syscall"
 	"time"
@@ -64,11 +65,27 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 	return nil
 }
 
-func defaultSigHandler(sig os.Signal) error {
-	logrus.Infof("got signal %s, exit", sig)
+func unlock() {
 	if len(lockDir) > 0 {
 		_ = os.RemoveAll(lockDir)
 	}
+}
+
+
+func panicHandler() {
+	r := recover()
+
+	if r != nil {
+		logrus.Errorf("panic: %s", r)
+		debug.PrintStack()
+		unlock()
+		os.Exit(1)
+	}
+}
+
+func defaultSigHandler(sig os.Signal) error {
+	logrus.Infof("got signal %s, exit", sig)
+	unlock()
 	os.Exit(exitCode)
 	return daemon.ErrStop
 }
@@ -213,6 +230,8 @@ func main() {
 	wg.Add(1)
 	go func(c *config.Configuration) {
 		defer wg.Done()
+		defer panicHandler()
+
 		err := daemon.ServeSignals()
 		if err != nil {
 			logrus.Errorf("serve signals failed: %s", err)
@@ -222,6 +241,7 @@ func main() {
 	wg.Add(1)
 	go func(c *config.Configuration) {
 		defer wg.Done()
+		defer panicHandler()
 
 		ticker := time.NewTicker(c.Core.SyncPeriod)
 		defer ticker.Stop()
@@ -239,6 +259,7 @@ func main() {
 		wg.Add(1)
 		go func(c *config.Configuration) {
 			defer wg.Done()
+			defer panicHandler()
 
 			for {
 				err := smtp.Server(c)
