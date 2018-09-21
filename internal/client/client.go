@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/andygrunwald/go-jira"
+	"github.com/sirupsen/logrus"
 
 	"github.com/legionus/jiramail/internal/config"
 	"github.com/legionus/jiramail/internal/jiraplus"
@@ -31,9 +32,15 @@ func NewClient(c *config.Configuration, remoteName string) (*jiraplus.Client, er
 		return nil, fmt.Errorf("unable to create client: %s", err)
 	}
 
-	if err == nil {
-		return jiraplus.NewClient(jiraClient), nil
+	user, resp, err := jiraClient.User.GetSelf()
+	if err != nil {
+		if resp.StatusCode == 401 {
+			return nil, fmt.Errorf("authentication credentials are incorrect or missing")
+		}
+		return nil, fmt.Errorf("unable to create client: %s", err)
 	}
 
-	return nil, err
+	logrus.Debugf("remote %q, use the user %q to synchronize", remoteName, user.Key)
+
+	return jiraplus.NewClient(jiraClient), nil
 }

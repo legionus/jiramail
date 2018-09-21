@@ -25,24 +25,29 @@ type JiraSyncer struct {
 	projects  map[string]struct{}
 }
 
-func NewJiraSyncer(c *config.Configuration, remoteName string) (s *JiraSyncer, err error) {
-	s = &JiraSyncer{
-		config:   c,
-		remote:   remoteName,
-		msgids:   make(map[string]struct{}),
-		projects: make(map[string]struct{}),
-	}
-	s.client, err = client.NewClient(s.config, s.remote)
-	s.converter = jiraconv.NewConverter(s.remote, cache.NewUserCache(s.client))
-
-	fields, _, err := s.client.Field.GetList()
+func NewJiraSyncer(c *config.Configuration, remoteName string) (*JiraSyncer, error) {
+	jiraClient, err := client.NewClient(c, remoteName)
 	if err != nil {
-		return
+		return nil, err
+	}
+
+	s := &JiraSyncer{
+		config:    c,
+		remote:    remoteName,
+		client:    jiraClient,
+		converter: jiraconv.NewConverter(remoteName, cache.NewUserCache(jiraClient)),
+		msgids:    make(map[string]struct{}),
+		projects:  make(map[string]struct{}),
+	}
+
+	fields, _, err := jiraClient.Field.GetList()
+	if err != nil {
+		return nil, err
 	}
 
 	s.converter.SetJiraFields(fields)
 
-	return
+	return s, nil
 }
 
 func (s *JiraSyncer) writeMessage(mdir maildir.Dir, msg *mail.Message) error {
