@@ -15,12 +15,11 @@ import (
 	"github.com/legionus/getopt"
 	"github.com/legionus/jiramail/internal/config"
 	"github.com/legionus/jiramail/internal/smtp"
-	"github.com/legionus/jiramail/internal/syncer"
 )
 
 var (
 	prog           = ""
-	version        = "1.0"
+	version        = ""
 	showVersionOpt = false
 	showHelpOpt    = false
 	lockDir        = ""
@@ -31,10 +30,10 @@ func usage() {
 	fmt.Fprintf(os.Stdout, `
 Usage: %[1]s [options]
 
-This utility is a simple interface to jira.
+Server providing SMTP transport for jira.
 
 Options:
-  -1, --onesync          run synchronization once and exit;
+  -f, --foreground       stay in the foreground;
   -c, --config=FILE      use an alternative configuration file;
   -V, --version          print program version and exit;
   -h, --help             show this text and exit.
@@ -71,7 +70,6 @@ func unlock() {
 	}
 }
 
-
 func panicHandler() {
 	r := recover()
 
@@ -90,41 +88,13 @@ func defaultSigHandler(sig os.Signal) error {
 	return daemon.ErrStop
 }
 
-func syncJira(c *config.Configuration) error {
-	for name := range c.Remote {
-		jiraSyncer, err := syncer.NewJiraSyncer(c, name)
-		if err != nil {
-			return err
-		}
-
-		err = jiraSyncer.Globals()
-		if err != nil {
-			return err
-		}
-
-		err = jiraSyncer.Boards()
-		if err != nil {
-			return err
-		}
-
-		err = jiraSyncer.Projects()
-		if err != nil {
-			return err
-		}
-
-	}
-
-	logrus.Infof("synchronization is completed")
-	return nil
-}
-
 func main() {
 	prog = filepath.Base(os.Args[0])
 	configFile := os.Getenv("HOME") + "/.jiramailrc"
 
 	var (
-		logLevel *logrus.Level
-		oneSync  bool
+		logLevel   *logrus.Level
+		foreground bool
 	)
 
 	opts := &getopt.Getopt{
@@ -158,9 +128,9 @@ func main() {
 					return
 				},
 			},
-			{'1', "onesync", getopt.NoArgument,
+			{'f', "foreground", getopt.NoArgument,
 				func(o *getopt.Option, t getopt.NameType, v string) (err error) {
-					oneSync = true
+					foreground = true
 					return
 				},
 			},
@@ -173,9 +143,29 @@ func main() {
 		return
 	}
 
+	if !foreground {
+		ctx := &daemon.Context{
+			WorkDir: "/",
+		}
+
+		child, err := ctx.Reborn()
+		if err != nil {
+			logrus.Errorf("%s", err)
+		}
+		if child != nil {
+			return
+		}
+		defer ctx.Release()
+	}
+
 	cfg, err := config.Read(configFile)
 	if err != nil {
 		logrus.Errorf("%s", err)
+		return
+	}
+
+	if cfg.SMTP == nil {
+		logrus.Errorf("SMTP server implies an SMTP configuration")
 		return
 	}
 
@@ -190,31 +180,23 @@ func main() {
 		DisableTimestamp: false,
 	})
 
-	if oneSync {
-		err = syncJira(cfg)
-		if err != nil {
-			logrus.Errorf("sync failed: %s", err)
-		}
-		return
-	}
-
-	if len(cfg.Core.LockDir) > 0 {
-		err = os.Mkdir(cfg.Core.LockDir, 0700)
+	if len(cfg.SMTP.LockDir) > 0 {
+		err = os.Mkdir(cfg.SMTP.LockDir, 0700)
 		if err != nil {
 			if !os.IsExist(err) {
 				logrus.Errorf("unable to create lock directory: %s", err)
 			}
-			logrus.Debugf("lock directory is already exists: %s", cfg.Core.LockDir)
+			logrus.Debugf("lock directory is already exists: %s", cfg.SMTP.LockDir)
 			return
 		}
 		defer func() {
-			_ = os.RemoveAll(cfg.Core.LockDir)
+			_ = os.RemoveAll(cfg.SMTP.LockDir)
 		}()
-		lockDir = cfg.Core.LockDir
+		lockDir = cfg.SMTP.LockDir
 	}
 
-	if len(cfg.Core.LogFile) > 0 {
-		f, err := os.OpenFile(cfg.Core.LogFile, os.O_WRONLY|os.O_CREATE, 0644)
+	if !foreground && len(cfg.Core.LogFile) > 0 {
+		f, err := os.OpenFile(cfg.Core.LogFile, os.O_WRONLY|os.O_APPEND|os.O_SYNC|os.O_CREATE, 0644)
 		if err != nil {
 			logrus.Errorf("unable to open log file: %s", err)
 			return
@@ -243,33 +225,14 @@ func main() {
 		defer wg.Done()
 		defer panicHandler()
 
-		ticker := time.NewTicker(c.Core.SyncPeriod)
-		defer ticker.Stop()
-
 		for {
-			err := syncJira(c)
+			err := smtp.Server(c)
 			if err != nil {
-				logrus.Errorf("sync failed: %s", err)
+				logrus.Errorf("smtp server failed: %s", err)
 			}
-			<-ticker.C
+			time.Sleep(3 * time.Second)
 		}
 	}(cfg)
-
-	if cfg.SMTP != nil {
-		wg.Add(1)
-		go func(c *config.Configuration) {
-			defer wg.Done()
-			defer panicHandler()
-
-			for {
-				err := smtp.Server(c)
-				if err != nil {
-					logrus.Errorf("smtp server failed: %s", err)
-				}
-				time.Sleep(3 * time.Second)
-			}
-		}(cfg)
-	}
 
 	wg.Wait()
 }

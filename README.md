@@ -46,6 +46,7 @@ core:
   lockdir: ~/tmp/jiramail.lock
 smtp:
   addr: 127.0.0.1:10025
+  lockdir: ~/tmp/jirasmtp.lock
   auth:
     username: jiramail
     password: SMTP-PRIVATE-KEY

@@ -32,6 +32,7 @@ type Core struct {
 type SMTP struct {
 	Addr            string
 	Hostname        string
+	LockDir         string
 	Auth            *SMTPAuth
 	LogMessagesOnly bool
 	TLS             struct {

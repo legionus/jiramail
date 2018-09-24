@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/legionus/jiramail/internal/cache"
 	"github.com/legionus/jiramail/internal/client"
 	"github.com/legionus/jiramail/internal/config"
@@ -48,6 +50,34 @@ func NewJiraSyncer(c *config.Configuration, remoteName string) (*JiraSyncer, err
 	s.converter.SetJiraFields(fields)
 
 	return s, nil
+}
+
+func SyncAll(c *config.Configuration) error {
+	for name := range c.Remote {
+		jiraSyncer, err := NewJiraSyncer(c, name)
+		if err != nil {
+			return err
+		}
+
+		err = jiraSyncer.Globals()
+		if err != nil {
+			return err
+		}
+
+		err = jiraSyncer.Boards()
+		if err != nil {
+			return err
+		}
+
+		err = jiraSyncer.Projects()
+		if err != nil {
+			return err
+		}
+
+	}
+
+	logrus.Infof("synchronization is completed")
+	return nil
 }
 
 func (s *JiraSyncer) writeMessage(mdir maildir.Dir, msg *mail.Message) error {

@@ -37,6 +37,7 @@ func Read(filename string) (*Configuration, error) {
 
 	cfg.Core.LogFile = substHome(cfg.Core.LogFile)
 	cfg.Core.LockDir = substHome(cfg.Core.LockDir)
+	cfg.SMTP.LockDir = substHome(cfg.SMTP.LockDir)
 	cfg.SMTP.TLS.CertFile = substHome(cfg.SMTP.TLS.CertFile)
 	cfg.SMTP.TLS.KeyFile = substHome(cfg.SMTP.TLS.KeyFile)
 
