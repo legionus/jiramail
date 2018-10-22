@@ -34,7 +34,7 @@ func NewClient(c *config.Configuration, remoteName string) (*jiraplus.Client, er
 
 	user, resp, err := jiraClient.User.GetSelf()
 	if err != nil {
-		if resp != nil && resp.StatusCode == 401 {
+		if resp != nil && resp.Response != nil && resp.StatusCode == 401 {
 			return nil, fmt.Errorf("authentication credentials are incorrect or missing")
 		}
 		return nil, fmt.Errorf("unable to create client: %s", err)
