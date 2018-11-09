@@ -3,6 +3,7 @@ package syncer
 import (
 	"fmt"
 	"path"
+	"strings"
 
 	"github.com/andygrunwald/go-jira"
 	"github.com/sirupsen/logrus"
@@ -40,6 +41,11 @@ func (s *JiraSyncer) sprint(parent string, board *jira.Board, sprint *jira.Sprin
 	err = s.writeMessage(mdir, msg)
 	if err != nil {
 		return err
+	}
+
+	if strings.ToLower(sprint.State) != "active" {
+		logrus.Infof("%s, issues are not handled because sprint is not active", logmsg)
+		return nil
 	}
 
 	refs = append(refs, jiraconv.BoardMessageID(board), jiraconv.SprintMessageID(sprint))
