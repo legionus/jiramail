@@ -27,6 +27,7 @@ type Core struct {
 	LogFile    string
 	LockDir    string
 	SyncPeriod time.Duration
+	MailQuote  []string
 }
 
 type SMTP struct {

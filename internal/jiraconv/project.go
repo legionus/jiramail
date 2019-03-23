@@ -2,7 +2,6 @@ package jiraconv
 
 import (
 	"fmt"
-	"net/mail"
 	"net/textproto"
 	"sort"
 	"strings"
@@ -11,7 +10,6 @@ import (
 	"github.com/andygrunwald/go-jira"
 
 	"github.com/legionus/jiramail/internal/message"
-	"github.com/legionus/jiramail/internal/smtp/command"
 )
 
 func ProjectMessageID(data *jira.Project) string {
@@ -22,7 +20,7 @@ func ProjectMessageID(data *jira.Project) string {
 	return message.EncodeMessageID("project.jira", projectID)
 }
 
-func (c *Converter) Project(data *jira.Project, refs []string) (*mail.Message, error) {
+func (c *Converter) Project(data *jira.Project, refs []string) (*message.Mail, error) {
 	if data == nil {
 		return nil, fmt.Errorf("unable to convert nil to project message")
 	}
@@ -45,10 +43,10 @@ func (c *Converter) Project(data *jira.Project, refs []string) (*mail.Message, e
 		headers.Set("References", strings.Join(refs, " "))
 	}
 
-	var info [][]string
+	msg := message.NewMail()
 
 	if len(data.ProjectCategory.Name) > 0 {
-		info = append(info, []string{"Category", data.ProjectCategory.Name})
+		msg.Meta.Set("Category", message.JiraNewColumn, data.ProjectCategory.Name)
 	}
 	if len(data.Components) > 0 {
 		s := make([]string, len(data.Components))
@@ -56,7 +54,7 @@ func (c *Converter) Project(data *jira.Project, refs []string) (*mail.Message, e
 			s[i] = `"` + component.Name + `"`
 		}
 		sort.Strings(s)
-		info = append(info, []string{"Components", strings.Join(s, ", ")})
+		msg.Meta.Set("Components", message.JiraNewColumn, strings.Join(s, ", "))
 	}
 	if len(data.IssueTypes) > 0 {
 		s := make([]string, len(data.IssueTypes))
@@ -64,17 +62,17 @@ func (c *Converter) Project(data *jira.Project, refs []string) (*mail.Message, e
 			s[i] = `"` + issuetype.Name + `"`
 		}
 		sort.Strings(s)
-		info = append(info, []string{"Issue types", strings.Join(s, ", ")})
+		msg.Meta.Set("Issue types", message.JiraNewColumn, strings.Join(s, ", "))
 	}
 	if len(data.Email) > 0 {
-		info = append(info, []string{"Email", data.Email})
+		msg.Meta.Set("Email", message.JiraNewColumn, data.Email)
 	}
 	if len(data.URL) > 0 {
-		info = append(info, []string{"URL", data.URL})
+		msg.Meta.Set("URL", message.JiraNewColumn, data.URL)
 	}
 
-	return &mail.Message{
-		Header: mail.Header(headers),
-		Body:   strings.NewReader(command.MakeJiraBlock(info) + data.Description),
-	}, nil
+	msg.Header = headers
+	msg.Body = []string{data.Description}
+
+	return msg, nil
 }

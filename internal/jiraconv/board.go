@@ -2,7 +2,6 @@ package jiraconv
 
 import (
 	"fmt"
-	"net/mail"
 	"net/textproto"
 	"strings"
 	"time"
@@ -10,7 +9,6 @@ import (
 	"github.com/andygrunwald/go-jira"
 
 	"github.com/legionus/jiramail/internal/message"
-	"github.com/legionus/jiramail/internal/smtp/command"
 )
 
 func BoardMessageID(data *jira.Board) string {
@@ -20,7 +18,7 @@ func BoardMessageID(data *jira.Board) string {
 	return message.EncodeMessageID("board.jira", boardID)
 }
 
-func (c *Converter) Board(data *jira.Board, reply string, refs []string) (*mail.Message, error) {
+func (c *Converter) Board(data *jira.Board, reply string, refs []string) (*message.Mail, error) {
 	if data == nil {
 		return nil, fmt.Errorf("unable to convert nil to board message")
 	}
@@ -45,8 +43,7 @@ func (c *Converter) Board(data *jira.Board, reply string, refs []string) (*mail.
 	headers.Set("X-Jira-ID", fmt.Sprintf("%d", data.ID))
 	headers.Set("X-Jira-Type", data.Type)
 
-	return &mail.Message{
-		Header: mail.Header(headers),
-		Body:   strings.NewReader(command.MakeJiraBlock(nil)),
+	return &message.Mail{
+		Header: headers,
 	}, nil
 }

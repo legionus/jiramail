@@ -2,7 +2,6 @@ package jiraconv
 
 import (
 	"fmt"
-	"net/mail"
 	"net/textproto"
 	"strings"
 	"time"
@@ -10,7 +9,6 @@ import (
 	"github.com/andygrunwald/go-jira"
 
 	"github.com/legionus/jiramail/internal/message"
-	"github.com/legionus/jiramail/internal/smtp/command"
 )
 
 func SprintMessageID(data *jira.Sprint) string {
@@ -20,7 +18,7 @@ func SprintMessageID(data *jira.Sprint) string {
 	return message.EncodeMessageID("sprint.jira", sprintID)
 }
 
-func (c *Converter) Sprint(data *jira.Sprint, refs []string) (*mail.Message, error) {
+func (c *Converter) Sprint(data *jira.Sprint, refs []string) (*message.Mail, error) {
 	if data == nil {
 		return nil, fmt.Errorf("unable to convert nil to sprint message")
 	}
@@ -44,20 +42,18 @@ func (c *Converter) Sprint(data *jira.Sprint, refs []string) (*mail.Message, err
 		headers.Set("References", strings.Join(refs, " "))
 	}
 
-	var info [][]string
+	msg := message.NewMail()
+	msg.Header = headers
 
 	if data.StartDate != nil {
-		info = append(info, []string{"Date start", data.StartDate.Format(time.RFC1123Z)})
+		msg.Meta.Set("Date start", message.JiraNewColumn, data.StartDate.Format(time.RFC1123Z))
 	}
 	if data.EndDate != nil {
-		info = append(info, []string{"Date end", data.EndDate.Format(time.RFC1123Z)})
+		msg.Meta.Set("Date end", message.JiraNewColumn, data.EndDate.Format(time.RFC1123Z))
 	}
 	if data.CompleteDate != nil {
-		info = append(info, []string{"Date complete", data.CompleteDate.Format(time.RFC1123Z)})
+		msg.Meta.Set("Date complete", message.JiraNewColumn, data.CompleteDate.Format(time.RFC1123Z))
 	}
 
-	return &mail.Message{
-		Header: mail.Header(headers),
-		Body:   strings.NewReader(command.MakeJiraBlock(info)),
-	}, nil
+	return msg, nil
 }

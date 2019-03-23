@@ -10,6 +10,7 @@ import (
 	"github.com/legionus/jiramail/internal/client"
 	"github.com/legionus/jiramail/internal/config"
 	"github.com/legionus/jiramail/internal/jiraplus"
+	"github.com/legionus/jiramail/internal/message"
 	"github.com/legionus/jiramail/internal/smtp/command"
 	"github.com/legionus/jiramail/internal/smtp/command/factory"
 )
@@ -25,7 +26,7 @@ func init() {
 
 type ReplaceBody struct{}
 
-func replaceIssue(client *jiraplus.Client, msg *command.Mail, updateSubject, updateBody bool) error {
+func replaceIssue(client *jiraplus.Client, msg *message.Mail, updateSubject, updateBody bool) error {
 	issueID := msg.Header.Get("X-Issue-Id")
 	issueKey := msg.Header.Get("X-Issue-Key")
 
@@ -41,7 +42,7 @@ func replaceIssue(client *jiraplus.Client, msg *command.Mail, updateSubject, upd
 		update["summary"] = []command.JiraMap{{"set": subject}}
 	}
 	if updateBody {
-		update["description"] = []command.JiraMap{{"set": command.GetBody(msg)}}
+		update["description"] = []command.JiraMap{{"set": msg.GetBody()}}
 	}
 
 	_, err := client.Issue.UpdateIssue(issueID, command.JiraMap{"update": update})
@@ -52,13 +53,13 @@ func replaceIssue(client *jiraplus.Client, msg *command.Mail, updateSubject, upd
 	return nil
 }
 
-func replaceComment(client *jiraplus.Client, msg *command.Mail) error {
+func replaceComment(client *jiraplus.Client, msg *message.Mail) error {
 	commentID := msg.Header.Get("X-Comment-Id")
 	issueID := msg.Header.Get("X-Issue-Key")
 
 	comment := &jira.Comment{
 		ID:   commentID,
-		Body: command.GetBody(msg),
+		Body: msg.GetBody(),
 	}
 
 	_, _, err := client.PlusIssue.UpdateComment(issueID, comment)
@@ -69,7 +70,7 @@ func replaceComment(client *jiraplus.Client, msg *command.Mail) error {
 	return nil
 }
 
-func (e *ReplaceBody) Handle(cfg *config.Configuration, msg *command.Mail) error {
+func (e *ReplaceBody) Handle(cfg *config.Configuration, msg *message.Mail) error {
 	msgType := msg.Header.Get("X-Type")
 	msgRemote := msg.Header.Get("X-Remote-Name")
 

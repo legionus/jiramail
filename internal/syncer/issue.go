@@ -8,6 +8,7 @@ import (
 	"github.com/legionus/jiramail/internal/jiraconv"
 	"github.com/legionus/jiramail/internal/jiraplus"
 	"github.com/legionus/jiramail/internal/maildir"
+	"github.com/legionus/jiramail/internal/message"
 )
 
 func (s *JiraSyncer) issue(mdir maildir.Dir, issue *jira.Issue, refs []string) error {
@@ -17,6 +18,17 @@ func (s *JiraSyncer) issue(mdir maildir.Dir, issue *jira.Issue, refs []string) e
 	}
 
 	for _, msg := range mailList {
+		prevmsg, err := s.readMessage(mdir, msg)
+		if err != nil {
+			return err
+		}
+
+		if prevmsg != nil && prevmsg.Meta != nil {
+			for _, field := range prevmsg.Meta.Data {
+				msg.Meta.Set(field.Name, message.JiraPrevColumn, prevmsg.Meta.Get(field.Name, message.JiraNewColumn))
+			}
+		}
+
 		err = s.writeMessage(mdir, msg)
 		if err != nil {
 			return err

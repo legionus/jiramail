@@ -2,7 +2,6 @@ package jiraconv
 
 import (
 	"fmt"
-	"net/mail"
 	"net/textproto"
 	"strings"
 	"time"
@@ -10,10 +9,9 @@ import (
 	"github.com/andygrunwald/go-jira"
 
 	"github.com/legionus/jiramail/internal/message"
-	"github.com/legionus/jiramail/internal/smtp/command"
 )
 
-func (c *Converter) processIssue(mType, ID, Key string, fields *jira.IssueFields, refs []string) ([]*mail.Message, error) {
+func (c *Converter) processIssue(mType, ID, Key string, fields *jira.IssueFields, refs []string) ([]*message.Mail, error) {
 	assignee := UserFromJira(fields.Assignee)
 	if assignee != nil {
 		c.usercache.Set(fields.Assignee)
@@ -61,24 +59,24 @@ func (c *Converter) processIssue(mType, ID, Key string, fields *jira.IssueFields
 		}
 	}
 
-	var issueInfo [][]string
+	msg := message.NewMail()
 
-	issueInfo = append(issueInfo, []string{"Type", fields.Type.Name})
+	msg.Meta.Set("Type", message.JiraNewColumn, fields.Type.Name)
 
 	for _, component := range fields.Components {
-		issueInfo = append(issueInfo, []string{"Component", component.Name})
+		msg.Meta.Set("Component", message.JiraNewColumn, component.Name)
 	}
 	if len(fields.Labels) > 0 {
-		issueInfo = append(issueInfo, []string{"Labels", strings.Join(fields.Labels, ", ")})
+		msg.Meta.Set("Labels", message.JiraNewColumn, strings.Join(fields.Labels, ", "))
 	}
 	if fields.Priority != nil {
-		issueInfo = append(issueInfo, []string{"Priority", fields.Priority.Name})
+		msg.Meta.Set("Priority", message.JiraNewColumn, fields.Priority.Name)
 	}
 	if fields.Resolution != nil {
-		issueInfo = append(issueInfo, []string{"Resolution", fields.Resolution.Name})
+		msg.Meta.Set("Resolution", message.JiraNewColumn, fields.Resolution.Name)
 	}
 	if fields.Status != nil {
-		issueInfo = append(issueInfo, []string{"Status", fields.Status.Name})
+		msg.Meta.Set("Status", message.JiraNewColumn, fields.Status.Name)
 	}
 
 	for _, field := range c.jiraFields {
@@ -90,15 +88,13 @@ func (c *Converter) processIssue(mType, ID, Key string, fields *jira.IssueFields
 		default:
 			continue
 		}
-		issueInfo = append(issueInfo, []string{field.Name, fmt.Sprintf("%v", fields.Unknowns[field.ID])})
+		msg.Meta.Set(field.Name, message.JiraNewColumn, fmt.Sprintf("%v", fields.Unknowns[field.ID]))
 	}
 
-	ret := []*mail.Message{
-		{
-			Header: mail.Header(headers),
-			Body:   strings.NewReader(command.MakeJiraBlock(issueInfo) + fields.Description),
-		},
-	}
+	msg.Header = headers
+	msg.Body = []string{fields.Description}
+
+	ret := []*message.Mail{msg}
 
 	var comments []*jira.Comment
 
@@ -140,12 +136,11 @@ func (c *Converter) processIssue(mType, ID, Key string, fields *jira.IssueFields
 			cheaders.Set("References", strings.Join(refs, " "))
 		}
 
-		m := &mail.Message{
-			Header: mail.Header(cheaders),
-			Body:   strings.NewReader(comment.Body),
-		}
+		cmsg := message.NewMail()
+		cmsg.Header = cheaders
+		cmsg.Body = []string{comment.Body}
 
-		ret = append(ret, m)
+		ret = append(ret, cmsg)
 	}
 
 	for _, subtask := range fields.Subtasks {
@@ -161,7 +156,7 @@ func (c *Converter) processIssue(mType, ID, Key string, fields *jira.IssueFields
 	return ret, nil
 }
 
-func (c *Converter) Issue(data *jira.Issue, refs []string) ([]*mail.Message, error) {
+func (c *Converter) Issue(data *jira.Issue, refs []string) ([]*message.Mail, error) {
 	if data == nil || data.Fields == nil {
 		return nil, fmt.Errorf("unable to convert nil to issue messages")
 	}

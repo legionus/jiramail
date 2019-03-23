@@ -1,8 +1,6 @@
 package syncer
 
 import (
-	"bytes"
-	"io"
 	"io/ioutil"
 	"net/mail"
 	"net/textproto"
@@ -36,16 +34,18 @@ func tagDeletedMessage(f *os.File) error {
 		return err
 	}
 
-	m.Body = bytes.NewReader(b)
+	msg := &message.Mail{
+		Header: textproto.MIMEHeader(m.Header),
+	}
 
-	_, err = f.Seek(0, io.SeekStart)
+	msg.Body, err = message.BodyFromBytes(b)
 	if err != nil {
 		return err
 	}
 
-	m.Header["Subject"] = []string{tagDeleted + " " + subject}
+	msg.Header["Subject"] = []string{tagDeleted + " " + subject}
 
-	return message.Write(f, m)
+	return message.Write(f, msg)
 }
 
 func (s *JiraSyncer) CleanDir(mdir maildir.Dir) error {

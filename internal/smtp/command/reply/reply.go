@@ -10,6 +10,7 @@ import (
 
 	"github.com/legionus/jiramail/internal/client"
 	"github.com/legionus/jiramail/internal/config"
+	"github.com/legionus/jiramail/internal/message"
 	"github.com/legionus/jiramail/internal/smtp/command"
 	"github.com/legionus/jiramail/internal/smtp/command/factory"
 )
@@ -22,7 +23,7 @@ func init() {
 
 type Reply struct{}
 
-func (r *Reply) Handle(cfg *config.Configuration, msg *command.Mail) error {
+func (r *Reply) Handle(cfg *config.Configuration, msg *message.Mail) error {
 	msgType := msg.Header.Get("X-Type")
 
 	switch msgType {
@@ -47,7 +48,7 @@ func (r *Reply) Handle(cfg *config.Configuration, msg *command.Mail) error {
 	return fmt.Errorf("unsupported message type: %s", msgType)
 }
 
-func addComment(cfg *config.Configuration, msg *command.Mail) error {
+func addComment(cfg *config.Configuration, msg *message.Mail) error {
 	client, err := client.NewClient(cfg, msg.Header.Get("X-Remote-Name"))
 	if err != nil {
 		return err
@@ -55,7 +56,7 @@ func addComment(cfg *config.Configuration, msg *command.Mail) error {
 
 	msgID := msg.Header.Get("X-Issue-Key")
 
-	_, _, err = client.PlusIssue.AddComment(msgID, &jira.Comment{Body: command.GetBody(msg)})
+	_, _, err = client.PlusIssue.AddComment(msgID, &jira.Comment{Body: msg.GetBody()})
 	if err != nil {
 		return fmt.Errorf("unable to add comment to %s issue: %s", msgID, err)
 	}
@@ -93,7 +94,7 @@ func getIssueType(s string, project *jira.Project, subtask bool) (string, string
 	return "", "", fmt.Errorf("issue type %s not found", res[1])
 }
 
-func addIssue(cfg *config.Configuration, msg *command.Mail, subtask bool) error {
+func addIssue(cfg *config.Configuration, msg *message.Mail, subtask bool) error {
 	client, err := client.NewClient(cfg, msg.Header.Get("X-Remote-Name"))
 	if err != nil {
 		return err
@@ -116,7 +117,7 @@ func addIssue(cfg *config.Configuration, msg *command.Mail, subtask bool) error 
 				Name: issueType,
 			},
 			Summary:     subject,
-			Description: command.GetBody(msg),
+			Description: msg.GetBody(),
 		},
 	}
 

@@ -4,12 +4,12 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
-	"net/mail"
 	"net/textproto"
 	"sort"
+	"strings"
 )
 
-func writeMIMEHeader(w io.Writer, header mail.Header) (N int, err error) {
+func writeMIMEHeader(w io.Writer, header textproto.MIMEHeader) (N int, err error) {
 	var names sort.StringSlice
 	var n int
 
@@ -34,10 +34,7 @@ func writeMIMEHeader(w io.Writer, header mail.Header) (N int, err error) {
 	return
 }
 
-func writeMessage(w io.Writer, header mail.Header, body io.ReadSeeker) error {
-	if _, err := body.Seek(0, io.SeekStart); err != nil {
-		return err
-	}
+func writeMessage(w io.Writer, header textproto.MIMEHeader, body io.Reader) error {
 	if _, err := writeMIMEHeader(w, header); err != nil {
 		return err
 	}
@@ -47,12 +44,25 @@ func writeMessage(w io.Writer, header mail.Header, body io.ReadSeeker) error {
 	return nil
 }
 
-func MakeChecksum(m *mail.Message) (string, error) {
-	body, ok := m.Body.(io.ReadSeeker)
-	if !ok {
-		return "", fmt.Errorf("unable to write such message")
+func getBodyReader(m *Mail, headers []string) io.Reader {
+	var readers []io.Reader
+	readers = append(readers, strings.NewReader(JiraStart+"\n# This block will be automatically deleted from the text.\n"))
+	if m.Meta != nil && len(m.Meta.Data) > 0 {
+		readers = append(
+			readers,
+			strings.NewReader("#\n"),
+			strings.NewReader(m.Meta.WithPrefix("# ").WithHeaders(headers).String()),
+			strings.NewReader("#\n"),
+		)
 	}
+	readers = append(readers, strings.NewReader(JiraEnd+"\n\n"))
+	for _, s := range m.Body {
+		readers = append(readers, strings.NewReader(s+"\n"))
+	}
+	return io.MultiReader(readers...)
+}
 
+func MakeChecksum(m *Mail) (string, error) {
 	hdr := make(textproto.MIMEHeader)
 	for k, v := range m.Header {
 		if k != "X-Checksum" {
@@ -62,7 +72,7 @@ func MakeChecksum(m *mail.Message) (string, error) {
 
 	h := sha256.New()
 
-	err := writeMessage(h, mail.Header(hdr), body)
+	err := writeMessage(h, hdr, getBodyReader(m, []string{JiraNewColumn}))
 	if err != nil {
 		return "", err
 	}
@@ -70,10 +80,6 @@ func MakeChecksum(m *mail.Message) (string, error) {
 	return fmt.Sprintf("sha256:%x", h.Sum(nil)), nil
 }
 
-func Write(w io.Writer, m *mail.Message) error {
-	body, ok := m.Body.(io.ReadSeeker)
-	if !ok {
-		return fmt.Errorf("unable to write such message")
-	}
-	return writeMessage(w, m.Header, body)
+func Write(w io.Writer, m *Mail) error {
+	return writeMessage(w, m.Header, getBodyReader(m, []string{JiraNewColumn, JiraPrevColumn}))
 }

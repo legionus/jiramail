@@ -2,7 +2,6 @@ package syncer
 
 import (
 	"fmt"
-	"net/mail"
 	"os"
 	"path/filepath"
 	"strings"
@@ -80,10 +79,31 @@ func SyncAll(c *config.Configuration) error {
 	return nil
 }
 
-func (s *JiraSyncer) writeMessage(mdir maildir.Dir, msg *mail.Message) error {
-	messageID := message.HeaderID(msg)
+func (s *JiraSyncer) readMessage(mdir maildir.Dir, msg *message.Mail) (*message.Mail, error) {
+	messageID := msg.HeaderID()
 
-	curMessageHash, err := getMessageHash(mdir, messageID)
+	fp, err := mdir.Filename(messageID)
+
+	if err != nil {
+		mailErr, ok := err.(*maildir.KeyError)
+		if ok && mailErr.N == 0 {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	nmsg, err := message.ReadMailfile(s.config, fp)
+	if err != nil {
+		return nil, err
+	}
+
+	return nmsg, nil
+}
+
+func (s *JiraSyncer) writeMessage(mdir maildir.Dir, msg *message.Mail) error {
+	messageID := msg.HeaderID()
+
+	curMessageHash, err := getMessageHash(s.config, mdir, messageID)
 	if err != nil {
 		return err
 	}
@@ -147,7 +167,7 @@ func CloseDelivery(mdir maildir.Dir, key string, d *maildir.Delivery) error {
 	return nil
 }
 
-func getMessageHash(mdir maildir.Dir, key string) (string, error) {
+func getMessageHash(cfg *config.Configuration, mdir maildir.Dir, key string) (string, error) {
 	fp, err := mdir.Filename(key)
 
 	if err != nil {
@@ -158,7 +178,7 @@ func getMessageHash(mdir maildir.Dir, key string) (string, error) {
 		return "", err
 	}
 
-	return message.GetChecksum(fp)
+	return message.GetChecksum(cfg, fp)
 }
 
 func Maildir(p string) (maildir.Dir, error) {

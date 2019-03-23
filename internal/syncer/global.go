@@ -2,7 +2,6 @@ package syncer
 
 import (
 	"fmt"
-	"net/mail"
 	"net/textproto"
 	"path"
 	"strings"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/legionus/jiramail/internal/jiraconv"
 	"github.com/legionus/jiramail/internal/maildir"
+	"github.com/legionus/jiramail/internal/message"
 )
 
 func (s *JiraSyncer) globalLinkTypes(mdir maildir.Dir, refs []string) error {
@@ -40,9 +40,13 @@ func (s *JiraSyncer) globalLinkTypes(mdir maildir.Dir, refs []string) error {
 	}
 	body += "\n"
 
-	msg := &mail.Message{
-		Header: mail.Header(headers),
-		Body:   strings.NewReader(body),
+	msg := &message.Mail{
+		Header: headers,
+	}
+
+	msg.Body, err = message.BodyFromStrings(body)
+	if err != nil {
+		return err
 	}
 
 	return s.writeMessage(mdir, msg)
@@ -74,9 +78,13 @@ func (s *JiraSyncer) globalPriorities(mdir maildir.Dir, refs []string) error {
 	}
 	body += "\n"
 
-	msg := &mail.Message{
-		Header: mail.Header(headers),
-		Body:   strings.NewReader(body),
+	msg := &message.Mail{
+		Header: headers,
+	}
+
+	msg.Body, err = message.BodyFromStrings(body)
+	if err != nil {
+		return err
 	}
 
 	return s.writeMessage(mdir, msg)
@@ -108,9 +116,13 @@ func (s *JiraSyncer) globalResolutions(mdir maildir.Dir, refs []string) error {
 	}
 	body += "\n"
 
-	msg := &mail.Message{
-		Header: mail.Header(headers),
-		Body:   strings.NewReader(body),
+	msg := &message.Mail{
+		Header: headers,
+	}
+
+	msg.Body, err = message.BodyFromStrings(body)
+	if err != nil {
+		return err
 	}
 
 	return s.writeMessage(mdir, msg)

@@ -2,10 +2,11 @@ package command
 
 import (
 	"github.com/legionus/jiramail/internal/config"
+	"github.com/legionus/jiramail/internal/message"
 )
 
 type Handler interface {
-	Handle(cfg *config.Configuration, msg *Mail) error
+	Handle(cfg *config.Configuration, msg *message.Mail) error
 }
 
 type ErrCommand struct {

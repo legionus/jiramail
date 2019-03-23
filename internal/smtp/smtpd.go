@@ -1,7 +1,6 @@
 package smtp
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"net"
@@ -48,30 +47,6 @@ func getHandler(header textproto.MIMEHeader, key string) (command.Handler, *mess
 	return nil, nil, factory.InvalidMailHandlerError
 }
 
-func getMessage(data []byte) (*command.Mail, error) {
-	var err error
-
-	msg := &command.Mail{}
-
-	tp := textproto.NewReader(bufio.NewReader(bytes.NewReader(data)))
-
-	msg.Header, err = tp.ReadMIMEHeader()
-	if err != nil {
-		return nil, err
-	}
-
-	scanner := bufio.NewScanner(tp.R)
-
-	for scanner.Scan() {
-		msg.Body = append(msg.Body, scanner.Text())
-	}
-	if err = scanner.Err(); err != nil {
-		return nil, err
-	}
-
-	return msg, nil
-}
-
 func validate(header textproto.MIMEHeader) error {
 	for _, name := range []string{"Message-ID", "References", "In-Reply-To"} {
 		v := header.Get(name)
@@ -83,7 +58,7 @@ func validate(header textproto.MIMEHeader) error {
 }
 
 func mailHandler(cfg *config.Configuration, remoteAddr net.Addr, from string, to []string, data []byte) {
-	msg, err := getMessage(data)
+	msg, err := message.ReadMail(cfg, bytes.NewReader(data))
 	if err != nil {
 		logrus.Errorf("smtp: %s", err)
 		return

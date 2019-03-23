@@ -11,6 +11,7 @@ import (
 	"github.com/legionus/jiramail/internal/client"
 	"github.com/legionus/jiramail/internal/config"
 	"github.com/legionus/jiramail/internal/jiraplus"
+	"github.com/legionus/jiramail/internal/message"
 	"github.com/legionus/jiramail/internal/smtp/command"
 	"github.com/legionus/jiramail/internal/smtp/command/directive/issue"
 	"github.com/legionus/jiramail/internal/smtp/command/directive/sprint"
@@ -89,7 +90,7 @@ var _ command.Handler = &Directive{}
 
 type Directive struct{}
 
-func (d *Directive) Handle(cfg *config.Configuration, msg *command.Mail) error {
+func (d *Directive) Handle(cfg *config.Configuration, msg *message.Mail) error {
 	msgType := msg.Header.Get("X-Type")
 	msgRemote := msg.Header.Get("X-Remote-Name")
 

@@ -2,7 +2,6 @@ package jiraconv
 
 import (
 	"fmt"
-	"net/mail"
 	"net/textproto"
 	"strings"
 	"time"
@@ -20,7 +19,7 @@ func EpicMessageID(data *jira.Epic) string {
 	return message.EncodeMessageID("epic.jira", epicID)
 }
 
-func (c *Converter) Epic(data *jira.Epic, refs []string) (*mail.Message, error) {
+func (c *Converter) Epic(data *jira.Epic, refs []string) (*message.Mail, error) {
 	if data == nil {
 		return nil, fmt.Errorf("unable to convert nil to epic message")
 	}
@@ -43,8 +42,8 @@ func (c *Converter) Epic(data *jira.Epic, refs []string) (*mail.Message, error) 
 		headers.Set("References", strings.Join(refs, " "))
 	}
 
-	return &mail.Message{
-		Header: mail.Header(headers),
-		Body:   strings.NewReader(data.Summary),
+	return &message.Mail{
+		Header: headers,
+		Body:   []string{data.Summary},
 	}, nil
 }
