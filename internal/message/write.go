@@ -94,7 +94,7 @@ func MakeChecksum(m *Mail) (string, error) {
 
 func Write(w io.Writer, m *Mail, n int) error {
 	if m.Meta != nil {
-		m.Meta.Headers = []string{JiraNewColumn, JiraDiffColumn, JiraPrevColumn}
+		m.Meta.Headers = []string{JiraPrevColumn, JiraDiffColumn, JiraNewColumn}
 		m.Meta.ColumnWidth = n
 	}
 	return writeMessage(w, m.Header, getBodyReader(m))
