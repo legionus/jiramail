@@ -125,7 +125,7 @@ func (s *JiraSyncer) writeMessage(mdir maildir.Dir, msg *message.Mail) error {
 
 	msg.Header["X-Checksum"] = []string{newMessageHash}
 
-	err = message.Write(d, msg)
+	err = message.Write(d, msg, s.config.Mail.JiraTableColumnWidth)
 	if err != nil {
 		d.Abort()
 		return err

@@ -7,7 +7,8 @@ import (
 )
 
 const (
-	Delim = "|"
+	Delim       = "|"
+	ColumnWidth = 40
 )
 
 type Field struct {
@@ -16,24 +17,27 @@ type Field struct {
 }
 
 type Table struct {
-	prefix  string
-	Headers []string
-	Data    []Field
+	prefix      string
+	ColumnWidth int
+	Headers     []string
+	Data        []Field
+}
+
+func (t *Table) Clone() *Table {
+	return &Table{
+		prefix:      t.prefix,
+		ColumnWidth: t.ColumnWidth,
+		Headers:     t.Headers,
+		Data:        t.Data,
+	}
 }
 
 func (t *Table) WithPrefix(v string) *Table {
 	return &Table{
-		prefix:  v,
-		Headers: t.Headers,
-		Data:    t.Data,
-	}
-}
-
-func (t *Table) WithHeaders(v []string) *Table {
-	return &Table{
-		prefix:  t.prefix,
-		Headers: v,
-		Data:    t.Data,
+		prefix:      v,
+		ColumnWidth: t.ColumnWidth,
+		Headers:     t.Headers,
+		Data:        t.Data,
 	}
 }
 
@@ -104,7 +108,11 @@ func (t Table) Write(w io.Writer) {
 		}
 		for name, data := range field.Column {
 			if lenColumns[name] < len(data) {
-				lenColumns[name] = len(data)
+				if len(data) > t.ColumnWidth {
+					lenColumns[name] = t.ColumnWidth
+				} else {
+					lenColumns[name] = len(data)
+				}
 			}
 		}
 	}
@@ -127,19 +135,48 @@ func (t Table) Write(w io.Writer) {
 		}
 		header += fmt.Sprintf(fmt.Sprintf(" %s %%-%ds", Delim, n), name)
 	}
+
 	w.Write([]byte(t.prefix + header + "\n"))
 	w.Write([]byte(t.prefix + strings.Repeat("-", len(header)) + "\n"))
 
+	var moreField *Field
+
 	for _, field := range t.Data {
+	LABEL:
 		s := fmt.Sprintf(fmt.Sprintf("%%-%ds", lenName), field.Name)
 		for _, name := range t.Headers {
 			n, ok := lenColumns[name]
 			if !ok || n == 0 {
 				continue
 			}
-			s += fmt.Sprintf(fmt.Sprintf(" %s %%-%ds", Delim, n), field.Column[name])
+
+			eol := len(field.Column[name])
+			if eol > t.ColumnWidth {
+				eol = t.ColumnWidth
+
+				if moreField == nil {
+					moreField = &Field{
+						Name:   "",
+						Column: map[string]string{},
+					}
+				}
+
+				moreField.Column[name] = field.Column[name][eol:]
+			}
+
+			format := fmt.Sprintf("%%-%ds", n)
+			data := fmt.Sprintf(format, field.Column[name][0:eol])
+
+			s += fmt.Sprintf(" %s %s", Delim, data)
 		}
+
 		w.Write([]byte(t.prefix + s + "\n"))
+
+		if moreField != nil {
+			field = *moreField
+			moreField = nil
+			goto LABEL
+		}
 	}
 
 	w.Write([]byte(t.prefix + strings.Repeat("-", len(header)) + "\n"))
@@ -152,11 +189,12 @@ func (t Table) String() string {
 }
 
 type Parser struct {
-	lines   int
-	err     error
-	closed  bool
-	headers []string
-	table   *Table
+	lines     int
+	err       error
+	closed    bool
+	headers   []string
+	table     *Table
+	lastfield *Field
 }
 
 func NewParser() *Parser {
@@ -195,7 +233,8 @@ func (p *Parser) Scan(s string) bool {
 			}
 		}
 		p.table = &Table{
-			Headers: p.headers,
+			ColumnWidth: ColumnWidth,
+			Headers:     p.headers,
 		}
 	case 2:
 		if x := strings.Replace(s, "-", "", -1); len(x) != 0 {
@@ -216,7 +255,7 @@ func (p *Parser) Scan(s string) bool {
 
 		a := strings.SplitN(s, Delim, -1)
 
-		f := Field{
+		f := &Field{
 			Name:   strings.TrimSpace(a[0]),
 			Column: make(map[string]string, len(p.headers)),
 		}
@@ -232,7 +271,16 @@ func (p *Parser) Scan(s string) bool {
 			f.Column[p.headers[i]] = strings.TrimSpace(a[i+1])
 		}
 
-		p.table.Append(f)
+		if f.Name == "" {
+			for _, n := range p.headers {
+				if len(f.Column[n]) > 0 {
+					p.lastfield.Column[n] += f.Column[n]
+				}
+			}
+		} else {
+			p.table.Append(*f)
+			p.lastfield = f
+		}
 	}
 
 	return true

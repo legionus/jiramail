@@ -44,14 +44,14 @@ func writeMessage(w io.Writer, header textproto.MIMEHeader, body io.Reader) erro
 	return nil
 }
 
-func getBodyReader(m *Mail, headers []string) io.Reader {
+func getBodyReader(m *Mail) io.Reader {
 	var readers []io.Reader
 	readers = append(readers, strings.NewReader(JiraStart+"\n# This block will be automatically deleted from the text.\n"))
 	if m.Meta != nil && len(m.Meta.Data) > 0 {
 		readers = append(
 			readers,
 			strings.NewReader("#\n"),
-			strings.NewReader(m.Meta.WithPrefix("# ").WithHeaders(headers).String()),
+			strings.NewReader(m.Meta.WithPrefix("# ").String()),
 			strings.NewReader("#\n"),
 		)
 	}
@@ -70,9 +70,21 @@ func MakeChecksum(m *Mail) (string, error) {
 		}
 	}
 
+	temp := &Mail{
+		Rcpt:   m.Rcpt,
+		Header: hdr,
+		Body:   m.Body,
+	}
+
+	if m.Meta != nil {
+		temp.Meta = m.Meta.Clone()
+		temp.Meta.Headers = []string{JiraNewColumn}
+		temp.Meta.ColumnWidth = 4096
+	}
+
 	h := sha256.New()
 
-	err := writeMessage(h, hdr, getBodyReader(m, []string{JiraNewColumn}))
+	err := writeMessage(h, temp.Header, getBodyReader(temp))
 	if err != nil {
 		return "", err
 	}
@@ -80,6 +92,10 @@ func MakeChecksum(m *Mail) (string, error) {
 	return fmt.Sprintf("sha256:%x", h.Sum(nil)), nil
 }
 
-func Write(w io.Writer, m *Mail) error {
-	return writeMessage(w, m.Header, getBodyReader(m, []string{JiraNewColumn, JiraDiffColumn, JiraPrevColumn}))
+func Write(w io.Writer, m *Mail, n int) error {
+	if m.Meta != nil {
+		m.Meta.Headers = []string{JiraNewColumn, JiraDiffColumn, JiraPrevColumn}
+		m.Meta.ColumnWidth = n
+	}
+	return writeMessage(w, m.Header, getBodyReader(m))
 }

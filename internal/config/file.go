@@ -46,6 +46,13 @@ func Read(filename string) (*Configuration, error) {
 		return nil, fmt.Errorf("you must specify CertFile and KeyFile to enable TLS")
 	}
 
+	if cfg.Mail == nil {
+		cfg.Mail = &Mail{
+			MailQuote: []string{"> "},
+			JiraTableColumnWidth: 55,
+		}
+	}
+
 	for name := range cfg.Remote {
 		cfg.Remote[name].DestDir = substHome(cfg.Remote[name].DestDir)
 

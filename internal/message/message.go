@@ -107,7 +107,7 @@ func ReadMail(cfg *config.Configuration, rd io.Reader) (msg *Mail, err error) {
 		case s == JiraEnd || strings.HasSuffix(s, " "+JiraEnd):
 			ismeta = false
 		default:
-			for _, quote := range cfg.Core.MailQuote {
+			for _, quote := range cfg.Mail.MailQuote {
 				s = strings.TrimPrefix(s, quote)
 			}
 			if ismeta {
@@ -132,6 +132,10 @@ func ReadMail(cfg *config.Configuration, rd io.Reader) (msg *Mail, err error) {
 	}
 
 	msg.Meta = metaparser.Table()
+
+	if msg.Meta != nil {
+		msg.Meta.ColumnWidth = cfg.Mail.JiraTableColumnWidth
+	}
 
 	return msg, nil
 }

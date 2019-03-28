@@ -18,6 +18,7 @@ func (d *LogLevel) UnmarshalText(data []byte) (err error) {
 
 type Configuration struct {
 	Core   Core
+	Mail   *Mail
 	SMTP   *SMTP
 	Remote map[string]*Remote
 }
@@ -27,7 +28,11 @@ type Core struct {
 	LogFile    string
 	LockDir    string
 	SyncPeriod time.Duration
-	MailQuote  []string
+}
+
+type Mail struct {
+	MailQuote            []string
+	JiraTableColumnWidth int
 }
 
 type SMTP struct {

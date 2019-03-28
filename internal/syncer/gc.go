@@ -17,7 +17,7 @@ const (
 	tagDeleted = "[DELETED]"
 )
 
-func tagDeletedMessage(f *os.File) error {
+func (s *JiraSyncer) tagDeletedMessage(f *os.File) error {
 	m, err := mail.ReadMessage(f)
 	if err != nil {
 		return err
@@ -45,7 +45,7 @@ func tagDeletedMessage(f *os.File) error {
 
 	msg.Header["Subject"] = []string{tagDeleted + " " + subject}
 
-	return message.Write(f, msg)
+	return message.Write(f, msg, s.config.Mail.JiraTableColumnWidth)
 }
 
 func (s *JiraSyncer) CleanDir(mdir maildir.Dir) error {
@@ -76,7 +76,7 @@ func (s *JiraSyncer) CleanDir(mdir maildir.Dir) error {
 				return err
 			}
 
-			err = tagDeletedMessage(f)
+			err = s.tagDeletedMessage(f)
 			f.Close()
 
 			if err != nil {
