@@ -98,26 +98,34 @@ func (t Table) Write(w io.Writer) {
 	lenName := 0
 	lenColumns := make(map[string]int)
 
-	for _, v := range t.Headers {
-		if lenColumns[v] < len(v) {
-			lenColumns[v] = len(v)
-		}
-	}
-
 	for _, field := range t.Data {
 		if lenName < len(field.Name) {
 			lenName = len(field.Name)
 		}
-		for k, v := range field.Column {
-			if lenColumns[k] < len(v) {
-				lenColumns[k] = len(v)
+		for name, data := range field.Column {
+			if lenColumns[name] < len(data) {
+				lenColumns[name] = len(data)
 			}
+		}
+	}
+
+	for _, name := range t.Headers {
+		n, ok := lenColumns[name]
+		if !ok || n == 0 {
+			continue
+		}
+		if n < len(name) {
+			lenColumns[name] = len(name)
 		}
 	}
 
 	header := fmt.Sprintf(fmt.Sprintf("%%-%ds", lenName), "Name")
 	for _, name := range t.Headers {
-		header += fmt.Sprintf(fmt.Sprintf(" %s %%-%ds", Delim, lenColumns[name]), name)
+		n, ok := lenColumns[name]
+		if !ok || n == 0 {
+			continue
+		}
+		header += fmt.Sprintf(fmt.Sprintf(" %s %%-%ds", Delim, n), name)
 	}
 	w.Write([]byte(t.prefix + header + "\n"))
 	w.Write([]byte(t.prefix + strings.Repeat("-", len(header)) + "\n"))
@@ -125,7 +133,11 @@ func (t Table) Write(w io.Writer) {
 	for _, field := range t.Data {
 		s := fmt.Sprintf(fmt.Sprintf("%%-%ds", lenName), field.Name)
 		for _, name := range t.Headers {
-			s += fmt.Sprintf(fmt.Sprintf(" %s %%-%ds", Delim, lenColumns[name]), field.Column[name])
+			n, ok := lenColumns[name]
+			if !ok || n == 0 {
+				continue
+			}
+			s += fmt.Sprintf(fmt.Sprintf(" %s %%-%ds", Delim, n), field.Column[name])
 		}
 		w.Write([]byte(t.prefix + s + "\n"))
 	}

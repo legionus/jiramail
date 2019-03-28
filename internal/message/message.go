@@ -20,6 +20,7 @@ const (
 
 	JiraNewColumn  = "Current"
 	JiraPrevColumn = "Previous"
+	JiraDiffColumn = "x"
 )
 
 type Meta struct {

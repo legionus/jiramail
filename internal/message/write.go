@@ -81,5 +81,5 @@ func MakeChecksum(m *Mail) (string, error) {
 }
 
 func Write(w io.Writer, m *Mail) error {
-	return writeMessage(w, m.Header, getBodyReader(m, []string{JiraNewColumn, JiraPrevColumn}))
+	return writeMessage(w, m.Header, getBodyReader(m, []string{JiraNewColumn, JiraDiffColumn, JiraPrevColumn}))
 }

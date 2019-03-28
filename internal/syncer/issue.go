@@ -25,7 +25,12 @@ func (s *JiraSyncer) issue(mdir maildir.Dir, issue *jira.Issue, refs []string) e
 
 		if prevmsg != nil && prevmsg.Meta != nil {
 			for _, field := range prevmsg.Meta.Data {
-				msg.Meta.Set(field.Name, message.JiraPrevColumn, prevmsg.Meta.Get(field.Name, message.JiraNewColumn))
+				curv := msg.Meta.Get(field.Name, message.JiraNewColumn)
+				prev := prevmsg.Meta.Get(field.Name, message.JiraNewColumn)
+				if curv != prev {
+					msg.Meta.Set(field.Name, message.JiraDiffColumn, "!")
+				}
+				msg.Meta.Set(field.Name, message.JiraPrevColumn, prev)
 			}
 		}
 
