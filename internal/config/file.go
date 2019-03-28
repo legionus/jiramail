@@ -48,7 +48,7 @@ func Read(filename string) (*Configuration, error) {
 
 	if cfg.Mail == nil {
 		cfg.Mail = &Mail{
-			MailQuote: []string{"> "},
+			MailQuote:            []string{"> "},
 			JiraTableColumnWidth: 55,
 		}
 	}

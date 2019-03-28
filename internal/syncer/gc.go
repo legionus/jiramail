@@ -1,8 +1,7 @@
 package syncer
 
 import (
-	"io/ioutil"
-	"net/mail"
+	"io"
 	"net/textproto"
 	"os"
 	"strings"
@@ -18,29 +17,19 @@ const (
 )
 
 func (s *JiraSyncer) tagDeletedMessage(f *os.File) error {
-	m, err := mail.ReadMessage(f)
+	msg, err := message.ReadMail(s.config, f)
 	if err != nil {
 		return err
 	}
 
-	subject := m.Header.Get("Subject")
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return err
+	}
+
+	subject := msg.Header.Get("Subject")
 
 	if strings.HasPrefix(subject, tagDeleted) {
 		return nil
-	}
-
-	b, err := ioutil.ReadAll(m.Body)
-	if err != nil {
-		return err
-	}
-
-	msg := &message.Mail{
-		Header: textproto.MIMEHeader(m.Header),
-	}
-
-	msg.Body, err = message.BodyFromBytes(b)
-	if err != nil {
-		return err
 	}
 
 	msg.Header["Subject"] = []string{tagDeleted + " " + subject}

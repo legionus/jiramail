@@ -42,11 +42,7 @@ func (s *JiraSyncer) globalLinkTypes(mdir maildir.Dir, refs []string) error {
 
 	msg := &message.Mail{
 		Header: headers,
-	}
-
-	msg.Body, err = message.BodyFromStrings(body)
-	if err != nil {
-		return err
+		Body:   []string{body},
 	}
 
 	return s.writeMessage(mdir, msg)
@@ -80,11 +76,7 @@ func (s *JiraSyncer) globalPriorities(mdir maildir.Dir, refs []string) error {
 
 	msg := &message.Mail{
 		Header: headers,
-	}
-
-	msg.Body, err = message.BodyFromStrings(body)
-	if err != nil {
-		return err
+		Body:   []string{body},
 	}
 
 	return s.writeMessage(mdir, msg)
@@ -118,11 +110,7 @@ func (s *JiraSyncer) globalResolutions(mdir maildir.Dir, refs []string) error {
 
 	msg := &message.Mail{
 		Header: headers,
-	}
-
-	msg.Body, err = message.BodyFromStrings(body)
-	if err != nil {
-		return err
+		Body:   []string{body},
 	}
 
 	return s.writeMessage(mdir, msg)
