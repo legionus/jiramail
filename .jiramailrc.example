@@ -1,0 +1,34 @@
+core:
+  loglevel: debug
+  logfile: /tmp/jiramail.log
+  lockdir: ~/tmp/jiramail.lock
+  syncperiod: 5m
+mail:
+  mailquote:
+    - "> "
+  jiratablecolumnwidth: 55
+  path:
+    globals: "{{.DestDir}}/globals"
+    board:   "{{.DestDir}}/boards/{{.BoardName}} ({{.BoardID}})"
+    sprint:  "{{.DestDir}}/boards/{{.BoardName}} ({{.BoardID}})/sprints/{{.SprintName}} ({{.SprintID}})"
+    epic:    "{{.DestDir}}/boards/{{.BoardName}} ({{.BoardID}})/epics/{{.EpicName}} ({{.EpicID}})"
+    backlog: "{{.DestDir}}/boards/{{.BoardName}} ({{.BoardID}})/backlog"
+    project: "{{.DestDir}}/projects/{{.ProjectdName}}"
+smtp:
+  addr: 127.0.0.1:10025
+  hostname: localhost
+  lockdir: ~/tmp/jirasmtp.lock
+  logmessagesonly: false
+  auth:
+    username: <SMTP-USER>
+    password: <SMTP-PASSWORD>
+  tls:
+    certfile: ~/Mail/jira.crt
+    keyfile:  ~/Mail/jira.key
+remote:
+  myserver:
+    destdir: ~/Mail/jira/myserver
+    baseurl: https://jira.myserver.com
+    username: <JIRA-USER>
+    password: <JIRA-PASSWORD>
+    delete: tag

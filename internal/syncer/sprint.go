@@ -2,7 +2,6 @@ package syncer
 
 import (
 	"fmt"
-	"path"
 	"strings"
 
 	"github.com/andygrunwald/go-jira"
@@ -12,11 +11,11 @@ import (
 	"github.com/legionus/jiramail/internal/jiraplus"
 )
 
-func (s *JiraSyncer) sprint(parent string, board *jira.Board, sprint *jira.Sprint, refs []string) error {
+func (s *JiraSyncer) sprint(board *jira.Board, sprint *jira.Sprint, refs []string) error {
 	logmsg := fmt.Sprintf("remote %q, board %q, sprint %q", s.remote, board.Name, sprint.Name)
 	logrus.Infof("%s begin to process", logmsg)
 
-	mdir, err := Maildir(path.Join(parent, "sprints", fmt.Sprintf("%s (%d)", ReplaceStringTrash(sprint.Name), sprint.ID)))
+	mdir, err := Maildir(s.getPath(s.config.Mail.Path.Sprint))
 	if err != nil {
 		return err
 	}
@@ -108,7 +107,11 @@ func (s *JiraSyncer) sprint(parent string, board *jira.Board, sprint *jira.Sprin
 	return nil
 }
 
-func (s *JiraSyncer) sprints(parent string, board *jira.Board, refs []string) error {
+func (s *JiraSyncer) sprints(board *jira.Board, refs []string) error {
+	if s.config.Mail.Path.Sprint == "" {
+		return nil
+	}
+
 	opts := &jira.GetAllSprintsOptions{}
 	opts.MaxResults = 100
 
@@ -132,7 +135,10 @@ func (s *JiraSyncer) sprints(parent string, board *jira.Board, refs []string) er
 		func(o interface{}) error {
 			sprint := o.(*jira.Sprint)
 
-			err := s.sprint(parent, board, sprint, refs)
+			s.vars["SprintName"] = ReplaceStringTrash(sprint.Name)
+			s.vars["SprintID"] = fmt.Sprintf("%d", sprint.ID)
+
+			err := s.sprint(board, sprint, refs)
 			if err != nil {
 				return err
 			}
@@ -140,6 +146,9 @@ func (s *JiraSyncer) sprints(parent string, board *jira.Board, refs []string) er
 			return nil
 		},
 	)
+
+	delete(s.vars, "SprintName")
+	delete(s.vars, "SprintID")
 
 	return err
 }

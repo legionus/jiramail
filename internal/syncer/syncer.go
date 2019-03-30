@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 
 	"github.com/sirupsen/logrus"
 
@@ -24,6 +25,7 @@ type JiraSyncer struct {
 	remote    string
 	msgids    map[string]struct{}
 	projects  map[string]struct{}
+	vars      map[string]string
 }
 
 func NewJiraSyncer(c *config.Configuration, remoteName string) (*JiraSyncer, error) {
@@ -39,6 +41,10 @@ func NewJiraSyncer(c *config.Configuration, remoteName string) (*JiraSyncer, err
 		converter: jiraconv.NewConverter(remoteName, cache.NewUserCache(jiraClient)),
 		msgids:    make(map[string]struct{}),
 		projects:  make(map[string]struct{}),
+		vars: map[string]string{
+			"Remote":  remoteName,
+			"DestDir": c.Remote[remoteName].DestDir,
+		},
 	}
 
 	fields, _, err := jiraClient.Field.GetList()
@@ -137,6 +143,22 @@ func (s *JiraSyncer) writeMessage(mdir maildir.Dir, msg *message.Mail) error {
 
 	s.msgids[messageID] = struct{}{}
 	return nil
+}
+
+func (s *JiraSyncer) getPath(parretn string) string {
+	tpl, err := template.New("path").Parse(parretn)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	p := &strings.Builder{}
+
+	err = tpl.Execute(p, s.vars)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	return p.String()
 }
 
 func CloseDelivery(mdir maildir.Dir, key string, d *maildir.Delivery) error {

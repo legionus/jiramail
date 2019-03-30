@@ -3,7 +3,6 @@ package syncer
 import (
 	"fmt"
 	"net/textproto"
-	"path"
 	"strings"
 	"time"
 
@@ -120,7 +119,11 @@ func (s *JiraSyncer) Globals() error {
 	logmsg := fmt.Sprintf("remote %q, globals", s.remote)
 	logrus.Infof("%s begin to process", logmsg)
 
-	mdir, err := Maildir(path.Join(s.config.Remote[s.remote].DestDir, "globals"))
+	if s.config.Mail.Path.Globals == "" {
+		return nil
+	}
+
+	mdir, err := Maildir(s.getPath(s.config.Mail.Path.Globals))
 	if err != nil {
 		return err
 	}

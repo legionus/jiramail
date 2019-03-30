@@ -1,8 +1,6 @@
 package syncer
 
 import (
-	"path"
-
 	"github.com/andygrunwald/go-jira"
 
 	"github.com/legionus/jiramail/internal/jiraconv"
@@ -44,7 +42,19 @@ func (s *JiraSyncer) issue(mdir maildir.Dir, issue *jira.Issue, refs []string) e
 }
 
 func (s *JiraSyncer) projectissue(issue *jira.Issue) error {
-	mdir, err := Maildir(path.Join(s.config.Remote[s.remote].DestDir, "projects", issue.Fields.Project.Key))
+	if s.config.Mail.Path.Project == "" {
+		return nil
+	}
+
+	s.vars["ProjectName"] = issue.Fields.Project.Key
+	s.vars["ProjectID"] = issue.Fields.Project.ID
+
+	defer func() {
+		delete(s.vars, "ProjectName")
+		delete(s.vars, "ProjectID")
+	}()
+
+	mdir, err := Maildir(s.getPath(s.config.Mail.Path.Project))
 	if err != nil {
 		return err
 	}

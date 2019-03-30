@@ -2,7 +2,6 @@ package syncer
 
 import (
 	"fmt"
-	"path"
 
 	"github.com/andygrunwald/go-jira"
 	"github.com/sirupsen/logrus"
@@ -10,11 +9,15 @@ import (
 	"github.com/legionus/jiramail/internal/jiraplus"
 )
 
-func (s *JiraSyncer) backlog(parent string, board *jira.Board, refs []string) error {
+func (s *JiraSyncer) backlog(board *jira.Board, refs []string) error {
+	if s.config.Mail.Path.Backlog == "" {
+		return nil
+	}
+
 	logmsg := fmt.Sprintf("remote %q, board %q, backlog", s.remote, board.Name)
 	logrus.Infof("%s begin to process", logmsg)
 
-	mdir, err := Maildir(path.Join(parent, "backlog"))
+	mdir, err := Maildir(s.getPath(s.config.Mail.Path.Backlog))
 	if err != nil {
 		return err
 	}

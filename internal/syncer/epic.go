@@ -2,7 +2,6 @@ package syncer
 
 import (
 	"fmt"
-	"path"
 
 	"github.com/andygrunwald/go-jira"
 	"github.com/sirupsen/logrus"
@@ -11,13 +10,13 @@ import (
 	"github.com/legionus/jiramail/internal/jiraplus"
 )
 
-func (s *JiraSyncer) epic(parent string, board *jira.Board, epic *jira.Epic, refs []string) error {
+func (s *JiraSyncer) epic(board *jira.Board, epic *jira.Epic, refs []string) error {
 	epicName := fmt.Sprintf("%s (%d)", ReplaceStringTrash(epic.Name), epic.ID)
 
 	logmsg := fmt.Sprintf("remote %q, board %q, epic %q", s.remote, board.Name, epicName)
 	logrus.Infof("%s begin to process", logmsg)
 
-	mdir, err := Maildir(path.Join(parent, "epics", epicName))
+	mdir, err := Maildir(s.getPath(s.config.Mail.Path.Epic))
 	if err != nil {
 		return err
 	}
@@ -104,7 +103,11 @@ func (s *JiraSyncer) epic(parent string, board *jira.Board, epic *jira.Epic, ref
 	return nil
 }
 
-func (s *JiraSyncer) epics(parent string, board *jira.Board, refs []string) error {
+func (s *JiraSyncer) epics(board *jira.Board, refs []string) error {
+	if s.config.Mail.Path.Epic == "" {
+		return nil
+	}
+
 	opts := &jira.SearchOptions{}
 	opts.MaxResults = 100
 
@@ -128,7 +131,10 @@ func (s *JiraSyncer) epics(parent string, board *jira.Board, refs []string) erro
 		func(o interface{}) error {
 			epic := o.(*jira.Epic)
 
-			err := s.epic(parent, board, epic, refs)
+			s.vars["EpicName"] = ReplaceStringTrash(epic.Name)
+			s.vars["EpicID"] = fmt.Sprintf("%d", epic.ID)
+
+			err := s.epic(board, epic, refs)
 			if err != nil {
 				return err
 			}
@@ -136,6 +142,9 @@ func (s *JiraSyncer) epics(parent string, board *jira.Board, refs []string) erro
 			return nil
 		},
 	)
+
+	delete(s.vars, "EpicName")
+	delete(s.vars, "EpicID")
 
 	return err
 }

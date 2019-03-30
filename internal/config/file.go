@@ -53,6 +53,17 @@ func Read(filename string) (*Configuration, error) {
 		}
 	}
 
+	if cfg.Mail.Path == nil {
+		cfg.Mail.Path = &Path{
+			Globals: "{{.DestDir}}/globals",
+			Board:   "{{.DestDir}}/boards/{{.BoardName}} ({{.BoardID}})",
+			Sprint:  "{{.DestDir}}/boards/{{.BoardName}} ({{.BoardID}})/sprints/{{.SprintName}} ({{.SprintID}})",
+			Epic:    "{{.DestDir}}/boards/{{.BoardName}} ({{.BoardID}})/epics/{{.EpicName}} ({{.EpicID}})",
+			Backlog: "{{.DestDir}}/boards/{{.BoardName}} ({{.BoardID}})/backlog",
+			Project: "{{.DestDir}}/projects/{{.ProjectName}}",
+		}
+	}
+
 	for name := range cfg.Remote {
 		cfg.Remote[name].DestDir = substHome(cfg.Remote[name].DestDir)
 

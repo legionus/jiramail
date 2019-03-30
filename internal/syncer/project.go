@@ -2,7 +2,6 @@ package syncer
 
 import (
 	"fmt"
-	"path"
 	"regexp"
 
 	"github.com/andygrunwald/go-jira"
@@ -44,6 +43,10 @@ func (s *JiraSyncer) project(mdir maildir.Dir, projectKey string) error {
 }
 
 func (s *JiraSyncer) Projects() error {
+	if s.config.Mail.Path.Project == "" {
+		return nil
+	}
+
 	var (
 		re *regexp.Regexp
 	)
@@ -61,6 +64,11 @@ func (s *JiraSyncer) Projects() error {
 		return fmt.Errorf("unable to get projects: %s", err)
 	}
 
+	defer func() {
+		delete(s.vars, "ProjectName")
+		delete(s.vars, "ProjectID")
+	}()
+
 	for _, project := range *projectList {
 		if re != nil {
 			_, ok := s.projects[project.Key]
@@ -70,7 +78,10 @@ func (s *JiraSyncer) Projects() error {
 			}
 		}
 
-		mdir, err := Maildir(path.Join(s.config.Remote[s.remote].DestDir, "projects", project.Key))
+		s.vars["ProjectName"] = project.Key
+		s.vars["ProjectID"] = project.ID
+
+		mdir, err := Maildir(s.getPath(s.config.Mail.Path.Project))
 		if err != nil {
 			return err
 		}

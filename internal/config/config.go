@@ -33,6 +33,16 @@ type Core struct {
 type Mail struct {
 	MailQuote            []string
 	JiraTableColumnWidth int
+	Path                 *Path
+}
+
+type Path struct {
+	Globals string
+	Board   string
+	Sprint  string
+	Epic    string
+	Backlog string
+	Project string
 }
 
 type SMTP struct {

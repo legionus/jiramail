@@ -3,7 +3,6 @@ package syncer
 import (
 	"fmt"
 	"os"
-	"path"
 	"regexp"
 
 	"github.com/andygrunwald/go-jira"
@@ -14,6 +13,10 @@ import (
 )
 
 func (s *JiraSyncer) Boards() error {
+	if s.config.Mail.Path.Board == "" {
+		return nil
+	}
+
 	var (
 		re *regexp.Regexp
 	)
@@ -58,26 +61,27 @@ func (s *JiraSyncer) Boards() error {
 				}
 			}
 
-			boardName := fmt.Sprintf("%s (%d)", ReplaceStringTrash(board.Name), board.ID)
+			s.vars["BoardName"] = ReplaceStringTrash(board.Name)
+			s.vars["BoardID"] = fmt.Sprintf("%d", board.ID)
 
-			mdir := path.Join(s.config.Remote[s.remote].DestDir, "boards", boardName)
+			mdir := s.getPath(s.config.Mail.Path.Board)
 
 			err := os.MkdirAll(mdir, 0755)
 			if err != nil {
 				return err
 			}
 
-			err = s.sprints(mdir, board, refs)
+			err = s.sprints(board, refs)
 			if err != nil {
 				return err
 			}
 
-			err = s.epics(mdir, board, refs)
+			err = s.epics(board, refs)
 			if err != nil {
 				return err
 			}
 
-			err = s.backlog(mdir, board, refs)
+			err = s.backlog(board, refs)
 			if err != nil {
 				return err
 			}
@@ -86,6 +90,10 @@ func (s *JiraSyncer) Boards() error {
 			return nil
 		},
 	)
+
+	delete(s.vars, "BoardName")
+	delete(s.vars, "BoardID")
+
 	if err != nil {
 		return err
 	}
