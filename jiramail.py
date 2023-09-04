@@ -101,6 +101,28 @@ class Subject:
 		return "".join([ f"[{self.key}] ", self.action, self.text ])
 
 
+def read_config():
+	config = None
+
+	for config_file in [ "~/.jiramail", "~/.config/jiramail/config" ]:
+		config_file = os.path.expanduser(config_file)
+
+		if not os.path.exists(config_file):
+			continue
+
+		verbose(2, f"picking config file `{config_file}' ...")
+
+		with open(config_file, "rb") as fd:
+			config = tomllib.load(fd)
+			break
+
+	if not config:
+		raise Exception("config file not found")
+
+	verbose(1, "config has been read")
+	return config
+
+
 def chain(*iterables):
 	for it in iterables:
 		for element in it:
@@ -368,17 +390,7 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 
 	verbosity = args.verbose
-	config = None
-
-	for config_file in [ "~/.jiramail", "~/.config/jiramail/config" ]:
-		config_file = os.path.expanduser(config_file)
-		if os.path.exists(config_file):
-			verbose(2, f"picking config file `{config_file}' ...")
-			with open(config_file, "rb") as fd:
-				config = tomllib.load(fd)
-				break
-
-	verbose(1, "config has been read")
+	config = read_config()
 
 	jserv = Connection(config.get("jira", {}))
 	mbox = Mailbox(args.outname)
