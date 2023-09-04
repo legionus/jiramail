@@ -301,8 +301,9 @@ def add_issue(issue, mbox):
 						mbox.append(mail)
 						changes = []
 
-					mail = issue_email(issue, date, el.author, subject, item.fromString)
-					mbox.append(mail)
+					if item.fromString:
+						mail = issue_email(issue, date, el.author, subject, item.fromString)
+						mbox.append(mail)
 
 					date = el.created
 					subject.version += 1
@@ -334,10 +335,10 @@ def add_issue(issue, mbox):
 	history = None
 	changes = []
 
-	mail = issue_email(issue, date, issue.fields.reporter, subject, description)
-	mail.add_header("To", get_user(issue.fields.assignee))
-
-	mbox.append(mail)
+	if description:
+		mail = issue_email(issue, date, issue.fields.reporter, subject, description)
+		mail.add_header("To", get_user(issue.fields.assignee))
+		mbox.append(mail)
 
 	return True
 
