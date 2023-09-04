@@ -3,7 +3,9 @@
 # Copyright (C) 2023  Alexey Gladkov <gladkov.alexey@gmail.com>
 
 import os.path
+import sys
 import argparse
+import time
 import tomllib
 import email
 import mailbox
@@ -23,7 +25,15 @@ except ModuleNotFoundError as e:
 	print(" - in fedora install: python-jira")
 	exit(1)
 
+
 jserv = None
+verbosity = 0
+
+
+def verbose(level: int, text: str):
+	if verbosity > level:
+		print(time.strftime("[%H:%M:%S]"), f"level={level}", text, file = sys.stderr, flush = True)
+
 
 class Connection:
 	def __init__(self, config_jira):
@@ -33,6 +43,8 @@ class Connection:
 		options = {
 			"check_update": False,
 		}
+
+		verbose(2, f"connecting to JIRA ...")
 
 		if self.config["auth"] == "token":
 			self.jira = jira.JIRA(self.config["server"],
@@ -47,6 +59,8 @@ class Connection:
 		else:
 			raise KeyError(f"Unknown method: jira.auth: " + self.config.get("auth", "<missing>"))
 
+		verbose(1, "connected to JIRA")
+
 	def fields(self):
 		if not self._fields:
 			self._fields = self.jira.fields()
@@ -55,13 +69,18 @@ class Connection:
 
 class Mailbox:
 	def __init__(self, path):
+		verbose(2, f"openning the mailbox {path} ...")
+
 		self.mbox = mailbox.mbox(path)
 		self.msgid = {}
+
 		for key in self.mbox.iterkeys():
 			mail = self.mbox.get_message(key)
 			if "Message-Id" in mail:
 				msg_id = mail.get("Message-Id")
 				self.msgid[msg_id] = True
+
+		verbose(1, "mailbox is ready")
 
 	def append(self, mail):
 		if mail.get("Message-Id") not in self.msgid:
@@ -327,10 +346,12 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser(
 			prog = "jiramail",
 			description = "Saves jira issues in mailbox format.",
-			epilog = "Report bugs to authors.")
+			epilog = "Report bugs to authors.",
+			allow_abbrev = True)
 
-	parser.add_argument("outname",
-			help = "path to mbox where emails should be added.")
+	parser.add_argument('-v', '--verbose',
+			dest = "verbose", action = 'count', default = 0,
+			help = "print a message for each action.")
 
 	parser.add_argument("--query",
 			dest = "queries", default = [], action = "append", metavar = "JQL",
@@ -340,33 +361,47 @@ if __name__ == '__main__':
 			dest = "issues", default = [], action = "append", metavar = "ISSUE-123",
 			help = "issues to export.")
 
+	parser.add_argument("outname",
+			help = "path to mbox where emails should be added.")
+
 	args = parser.parse_args()
 
+	verbosity = args.verbose
 	config = None
+	issues = []
+
 	for config_file in [ "~/.jiramail", "~/.config/jiramail/config" ]:
 		config_file = os.path.expanduser(config_file)
 		if os.path.exists(config_file):
+			verbose(2, f"picking config file `{config_file}' ...")
 			with open(config_file, "rb") as fd:
 				config = tomllib.load(fd)
 				break
 
+	verbose(1, "config has been read")
+
 	jserv = Connection(config.get("jira", {}))
 	mbox = Mailbox(args.outname)
 
-	issues = []
-
 	for query in args.queries:
-		for issue in jserv.jira.search_issues(query,
-											expand = "changelog",
-											maxResults = False):
+		verbose(2, f"processing query `{query}` ...")
+
+		res =  jserv.jira.search_issues(query, expand = "changelog", maxResults = False)
+
+		verbose(1, f"by query `{query}` got {len(res)} issues")
+
+		for issue in res:
 			if issue:
 				issues.append(issue)
 
-	for issue_key in args.issues:
-		issues.append(jserv.jira.issue(issue_key,
-									expand = "changelog"))
+	for key in args.issues:
+		issue = jserv.jira.issue(key, expand = "changelog")
+		issues.append(issue)
+
+	verbose(1, f"added {len(args.issues)} issues from command line")
 
 	for issue in issues:
+		verbose(2, f"processing issue {issue.key} ...")
 		add_issue(issue, mbox)
 
 	mbox.close()
