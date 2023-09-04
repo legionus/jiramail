@@ -61,7 +61,7 @@ class Mailbox:
 			mail = self.mbox.get_message(key)
 			if "Message-Id" in mail:
 				msg_id = mail.get("Message-Id")
-				mbox.msgid[msg_id] = True
+				self.msgid[msg_id] = True
 
 	def append(self, mail):
 		if mail.get("Message-Id") not in self.msgid:
