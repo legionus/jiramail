@@ -408,15 +408,28 @@ if __name__ == '__main__':
 	mbox = Mailbox(args.outname)
 
 	for query in args.queries:
+		pos = 0
+		chunk = 50
+
 		verbose(2, f"processing query `{query}` ...")
 
-		res =  jserv.jira.search_issues(query, expand = "changelog", maxResults = False)
+		while True:
+			res = jserv.jira.search_issues(query,
+					expand = "changelog",
+					startAt = pos,
+					maxResults = chunk)
+			if not res:
+				break
 
-		verbose(1, f"by query `{query}` got {len(res)} issues")
+			if pos == 0:
+				verbose(1, f"query `{query}` found {res.total} issues")
 
-		for issue in res:
-			if issue:
+			for issue in res:
 				add_issue(issue, mbox)
+
+			if res.isLast:
+				break
+			pos += chunk
 
 	for key in args.issues:
 		issue = jserv.jira.issue(key, expand = "changelog")
