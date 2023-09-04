@@ -359,7 +359,8 @@ if __name__ == '__main__':
 		for issue in jserv.jira.search_issues(query,
 											expand = "changelog",
 											maxResults = False):
-			issues.append(issue)
+			if issue:
+				issues.append(issue)
 
 	for issue_key in args.issues:
 		issues.append(jserv.jira.issue(issue_key,
