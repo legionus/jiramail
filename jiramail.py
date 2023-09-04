@@ -2,13 +2,13 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2023  Alexey Gladkov <gladkov.alexey@gmail.com>
 
-import os.path
-import sys
 import argparse
-import time
-import tomllib
 import email
 import mailbox
+import os.path
+import sys
+import time
+import tomllib
 import pprint
 
 from datetime import datetime
@@ -127,6 +127,13 @@ def chain(*iterables):
 	for it in iterables:
 		for element in it:
 			yield element
+
+
+def has_attrs(o, attrs):
+	for attr in attrs:
+		if not hasattr(o, attr):
+			return False
+	return True
 
 
 def get_issue_field(issue: any, name: str) -> str:
@@ -311,7 +318,7 @@ def add_issue(issue, mbox):
 			reverse = False):
 
 		if isinstance(el, jira.resources.PropertyHolder):
-			if not hasattr(el, "author") or not hasattr(el, "created") or not hasattr(el, "items"):
+			if not has_attrs(el, ["author", "created", "items"]):
 				# The object doesn't look like an issue state change.
 				continue
 
@@ -329,6 +336,9 @@ def add_issue(issue, mbox):
 				changes = []
 
 			for item in el.items:
+				if not has_attrs(item, ["fieldtype", "field"]):
+					continue
+
 				if item.fieldtype == "jira" and item.field == "description":
 					if changes:
 						mail = changes_email(issue.id, el.id, el.created, el.author, subject, changes)
@@ -356,6 +366,10 @@ def add_issue(issue, mbox):
 			continue
 
 		if isinstance(el, jira.resources.Comment):
+			if not has_attrs(el, ["id", "created", "author", "body"]):
+				# Something strange with this object
+				continue
+
 			mail = comment_email(issue, el.id, el.created, el.author, subject, el.body)
 			mbox.append(mail)
 			continue
