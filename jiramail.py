@@ -311,6 +311,10 @@ def add_issue(issue, mbox):
 			reverse = False):
 
 		if isinstance(el, jira.resources.PropertyHolder):
+			if not hasattr(el, "author") or not hasattr(el, "created") or not hasattr(el, "items"):
+				# The object doesn't look like an issue state change.
+				continue
+
 			if history:
 				t1 = datetime.fromisoformat(history.created)
 			else:
