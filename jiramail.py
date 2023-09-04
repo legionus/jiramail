@@ -377,7 +377,7 @@ def add_issue(issue, mbox):
 	return True
 
 
-if __name__ == '__main__':
+def parse_aruments():
 	parser = argparse.ArgumentParser(
 			prog = "jiramail",
 			description = "Saves jira issues in mailbox format.",
@@ -399,11 +399,17 @@ if __name__ == '__main__':
 	parser.add_argument("outname",
 			help = "path to mbox where emails should be added.")
 
-	args = parser.parse_args()
+	return parser.parse_args()
 
+
+
+def main():
+	global jserv, verbosity
+
+	args = parse_aruments()
 	verbosity = args.verbose
-	config = read_config()
 
+	config = read_config()
 	jserv = Connection(config.get("jira", {}))
 	mbox = Mailbox(args.outname)
 
@@ -436,5 +442,12 @@ if __name__ == '__main__':
 		add_issue(issue, mbox)
 
 	mbox.close()
+
+
+if __name__ == '__main__':
+	try:
+		main()
+	except KeyboardInterrupt:
+		exit(1)
 
 # vim: ft=python tw=200 noexpandtab
