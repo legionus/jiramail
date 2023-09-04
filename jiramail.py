@@ -264,7 +264,7 @@ def comment_email(issue, comment_id, date, author, subject, message):
 
 
 def add_issue(issue, mbox):
-	key = issue.key
+	verbose(2, f"processing issue {issue.key} ...")
 
 	date = get_issue_field(issue, "created")
 	summary = get_issue_field(issue, "summary")
@@ -273,7 +273,7 @@ def add_issue(issue, mbox):
 	history = None
 	changes = []
 
-	subject = Subject(key, summary)
+	subject = Subject(issue.key, summary)
 
 	for el in sorted(
 			chain(issue.changelog.histories, issue.fields.comment.comments),
@@ -369,7 +369,6 @@ if __name__ == '__main__':
 
 	verbosity = args.verbose
 	config = None
-	issues = []
 
 	for config_file in [ "~/.jiramail", "~/.config/jiramail/config" ]:
 		config_file = os.path.expanduser(config_file)
@@ -393,16 +392,10 @@ if __name__ == '__main__':
 
 		for issue in res:
 			if issue:
-				issues.append(issue)
+				add_issue(issue, mbox)
 
 	for key in args.issues:
 		issue = jserv.jira.issue(key, expand = "changelog")
-		issues.append(issue)
-
-	verbose(1, f"added {len(args.issues)} issues from command line")
-
-	for issue in issues:
-		verbose(2, f"processing issue {issue.key} ...")
 		add_issue(issue, mbox)
 
 	mbox.close()
