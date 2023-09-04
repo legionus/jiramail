@@ -143,7 +143,15 @@ def get_issue_field(issue: any, name: str) -> str:
 
 
 def get_user(user) -> str:
-	return email.utils.formataddr((user.displayName, user.emailAddress), charset='utf-8')
+	name = ""
+	addr = "unknown"
+
+	if hasattr(user, "displayName"):
+		name = user.displayName
+	if hasattr(user, "emailAddress"):
+		addr = user.emailAddress
+
+	return email.utils.formataddr((name, addr), charset='utf-8')
 
 
 def get_date(data: str) -> str:
