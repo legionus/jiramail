@@ -98,7 +98,12 @@ class Subject:
 		self.action = ""
 
 	def __str__(self):
-		return "".join([ f"[{self.key}] ", self.action, self.text ])
+		subj = [ f"[{self.key}]" ]
+		if self.action:
+			subj.append(self.action)
+		if self.text:
+			subj.append(self.text)
+		return " ".join(subj)
 
 
 def read_config():
@@ -190,7 +195,7 @@ def issue_email(issue, date, author, subject, message):
 				parent_id = parent_msg_id,
 				msg_id = mail.get("Message-Id")))
 
-		subject.action = "U: "
+		subject.action = "U:"
 	else:
 		subject.action = ""
 
@@ -227,9 +232,9 @@ def issue_email(issue, date, author, subject, message):
 def changes_email(issue_id, change_id, date, author, subject, changes):
 	mail = email.message.EmailMessage()
 
-	subject.action = "U: "
+	subject.action = "U:"
+	status = ""
 
-	mail.add_header("Subject", str(subject))
 	mail.add_header("Date", get_date(date))
 	mail.add_header("From", get_user(author))
 	mail.add_header("Message-Id", f"<{issue_id}-{change_id}@changes.issue.jira>")
@@ -249,6 +254,8 @@ def changes_email(issue_id, change_id, date, author, subject, changes):
 			name_len = len(item.field)
 		if item.fromString and old_len < len(item.fromString):
 			old_len = len(item.fromString)
+		if item.fieldtype == "jira" and item.field == "status" and item.toString:
+			status = f" [{item.toString}]"
 
 	name_len += 1
 	old_len  += 1
@@ -266,6 +273,7 @@ def changes_email(issue_id, change_id, date, author, subject, changes):
 	body.append("-- ")
 	body.append("")
 
+	mail.add_header("Subject", str(subject) + status)
 	mail.set_content("\n".join(body))
 
 	return mail
@@ -275,7 +283,7 @@ def comment_email(issue, comment_id, date, author, subject, message):
 	mail = email.message.EmailMessage()
 
 	parent_msg_id = f"<v1-{issue.id}@issue.jira>"
-	subject.action = "C: "
+	subject.action = "C:"
 
 	mail.add_header("Subject", str(subject))
 	mail.add_header("Date", get_date(date))
@@ -412,7 +420,6 @@ def parse_aruments():
 			help = "path to mbox where emails should be added.")
 
 	return parser.parse_args()
-
 
 
 def main():
