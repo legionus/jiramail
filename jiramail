@@ -356,7 +356,7 @@ def add_issue(issue, mbox):
 
 				if item.fieldtype == "jira" and item.field == "description":
 					if changes:
-						mail = changes_email(issue.id, el.id, el.created, el.author, subject, changes)
+						mail = changes_email(issue.id, el.id + "-0", el.created, el.author, subject, changes)
 						mbox.append(mail)
 						changes = []
 
