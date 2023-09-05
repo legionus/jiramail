@@ -30,7 +30,7 @@ jserv = None
 verbosity = 0
 
 
-def verbose(level: int, text: str):
+def verbose(level, text):
 	if verbosity >= level:
 		print(time.strftime("[%H:%M:%S]"), f"level={level}", text, file = sys.stderr, flush = True)
 
@@ -141,7 +141,7 @@ def has_attrs(o, attrs):
 	return True
 
 
-def get_issue_field(issue: any, name: str) -> str:
+def get_issue_field(issue, name):
 	try:
 		return issue.get_field(field_name=name)
 	except AttributeError:
@@ -154,7 +154,7 @@ def get_issue_field(issue: any, name: str) -> str:
 	return None
 
 
-def get_user(user) -> str:
+def get_user(user):
 	name = ""
 	addr = "unknown"
 
@@ -166,7 +166,7 @@ def get_user(user) -> str:
 	return email.utils.formataddr((name, addr), charset='utf-8')
 
 
-def get_date(data: str) -> str:
+def get_date(data):
 	dt = datetime.fromisoformat(data)
 	return email.utils.format_datetime(dt)
 
@@ -393,8 +393,6 @@ def add_issue(issue, mbox):
 	mail = issue_email(issue, date, issue.fields.reporter, subject, description or "")
 	mail.add_header("To", get_user(issue.fields.assignee))
 	mbox.append(mail)
-
-	return True
 
 
 def process_query(query, jserv, mbox):
