@@ -374,7 +374,7 @@ def add_issue(issue, mbox):
 			mbox.append(mail)
 			continue
 
-		verbose(0, "unknown history item:", repr(el), file = sys.stderr)
+		verbose(0, f"unknown history item: {repr(el)}")
 
 	if history and changes:
 		mail = changes_email(issue.id, history.id, history.created, history.author, subject, changes)
