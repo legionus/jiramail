@@ -345,9 +345,8 @@ def add_issue(issue, mbox):
 						mbox.append(mail)
 						changes = []
 
-					if item.fromString:
-						mail = issue_email(issue, date, el.author, subject, item.fromString)
-						mbox.append(mail)
+					mail = issue_email(issue, date, el.author, subject, item.fromString or "")
+					mbox.append(mail)
 
 					date = el.created
 					subject.version += 1
@@ -383,10 +382,9 @@ def add_issue(issue, mbox):
 	history = None
 	changes = []
 
-	if description:
-		mail = issue_email(issue, date, issue.fields.reporter, subject, description)
-		mail.add_header("To", get_user(issue.fields.assignee))
-		mbox.append(mail)
+	mail = issue_email(issue, date, issue.fields.reporter, subject, description or "")
+	mail.add_header("To", get_user(issue.fields.assignee))
+	mbox.append(mail)
 
 	return True
 
