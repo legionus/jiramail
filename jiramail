@@ -423,17 +423,21 @@ def process_query(query, jserv, mbox):
 def parse_aruments():
 	parser = argparse.ArgumentParser(
 			prog = "jiramail",
-			description = "Saves jira issues in mailbox format.",
+			formatter_class = argparse.RawDescriptionHelpFormatter,
+			description = """
+Saves JIRA issues in mailbox format. Issues are saved along with all comments.
+Changes made to the issue are also saved in the form of emails.
+""",
 			epilog = "Report bugs to authors.",
 			allow_abbrev = True)
 
 	parser.add_argument('-v', '--verbose',
 			dest = "verbose", action = 'count', default = 0,
-			help = "print a message for each action.")
+			help = "print a message for each action")
 
 	parser.add_argument("--assignee",
 			dest = "assignee", default = [], action = "append", metavar = "USER",
-			help = "search for all issues that belong to the USER.")
+			help = "search for all issues that belong to the USER")
 
 	parser.add_argument("--query",
 			dest = "queries", default = [], action = "append", metavar = "JQL",
@@ -441,10 +445,10 @@ def parse_aruments():
 
 	parser.add_argument("--issue",
 			dest = "issues", default = [], action = "append", metavar = "ISSUE-123",
-			help = "issues to export.")
+			help = "specify the issues to export")
 
 	parser.add_argument("outname",
-			help = "path to mbox where emails should be added.")
+			help = "path to mbox where emails should be added")
 
 	return parser.parse_args()
 
