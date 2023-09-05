@@ -279,7 +279,7 @@ def changes_email(issue_id, change_id, date, author, subject, changes):
 	return mail
 
 
-def comment_email(issue, comment_id, date, author, subject, message):
+def comment_email(issue, comment, date, author, subject, message):
 	mail = email.message.EmailMessage()
 
 	parent_msg_id = f"<v1-{issue.id}@issue.jira>"
@@ -288,19 +288,25 @@ def comment_email(issue, comment_id, date, author, subject, message):
 	mail.add_header("Subject", str(subject))
 	mail.add_header("Date", get_date(date))
 	mail.add_header("From", get_user(author))
-	mail.add_header("Message-Id", f"<{issue.id}-{comment_id}@comment.issue.jira>")
+	mail.add_header("Message-Id", f"<{issue.id}-{comment.id}@comment.issue.jira>")
 
 	mail.add_header("In-Reply-To", parent_msg_id)
 	mail.add_header("References", "{parent_id} {msg_id}".format(
 			parent_id = parent_msg_id,
 			msg_id = mail.get("Message-Id")))
 
-	body = [ message ]
+	body = []
+
+	if hasattr(comment, "visibility") and hasattr(comment.visibility, "value"):
+		body.append(f"[Visible only to {comment.visibility.value}]")
+		body.append("---")
+
+	body.append(message)
 	body.append("")
 	body.append("-- ")
 	body.append("{url}?focusedId={commentid}#comment-{commentid}".format(
 			url = issue.permalink(),
-			commentid = comment_id))
+			commentid = comment.id))
 	body.append("")
 
 	mail.set_content("\n".join(body))
@@ -310,6 +316,7 @@ def comment_email(issue, comment_id, date, author, subject, message):
 
 def add_issue(issue, mbox):
 	verbose(2, f"processing issue {issue.key} ...")
+	#pprint.pprint(issue.raw)
 
 	date = get_issue_field(issue, "created")
 	summary = get_issue_field(issue, "summary")
@@ -377,7 +384,7 @@ def add_issue(issue, mbox):
 				# Something strange with this object
 				continue
 
-			mail = comment_email(issue, el.id, el.created, el.author, subject, el.body)
+			mail = comment_email(issue, el, el.created, el.author, subject, el.body)
 			mbox.append(mail)
 			continue
 
