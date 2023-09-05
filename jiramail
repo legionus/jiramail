@@ -397,6 +397,31 @@ def add_issue(issue, mbox):
 	return True
 
 
+def process_query(query, jserv, mbox):
+	pos = 0
+	chunk = 50
+
+	verbose(2, f"processing query `{query}` ...")
+
+	while True:
+		res = jserv.jira.search_issues(query,
+				expand = "changelog",
+				startAt = pos,
+				maxResults = chunk)
+		if not res:
+			break
+
+		if pos == 0:
+			verbose(1, f"query `{query}` found {res.total} issues")
+
+		for issue in res:
+			add_issue(issue, mbox)
+
+		if res.isLast:
+			break
+		pos += chunk
+
+
 def parse_aruments():
 	parser = argparse.ArgumentParser(
 			prog = "jiramail",
@@ -407,6 +432,10 @@ def parse_aruments():
 	parser.add_argument('-v', '--verbose',
 			dest = "verbose", action = 'count', default = 0,
 			help = "print a message for each action.")
+
+	parser.add_argument("--assignee",
+			dest = "assignee", default = [], action = "append", metavar = "USER",
+			help = "search for all issues that belong to the USER.")
 
 	parser.add_argument("--query",
 			dest = "queries", default = [], action = "append", metavar = "JQL",
@@ -432,29 +461,11 @@ def main():
 	jserv = Connection(config.get("jira", {}))
 	mbox = Mailbox(args.outname)
 
+	for username in args.assignee:
+		process_query(f"assignee = '{username}'", jserv, mbox)
+
 	for query in args.queries:
-		pos = 0
-		chunk = 50
-
-		verbose(2, f"processing query `{query}` ...")
-
-		while True:
-			res = jserv.jira.search_issues(query,
-					expand = "changelog",
-					startAt = pos,
-					maxResults = chunk)
-			if not res:
-				break
-
-			if pos == 0:
-				verbose(1, f"query `{query}` found {res.total} issues")
-
-			for issue in res:
-				add_issue(issue, mbox)
-
-			if res.isLast:
-				break
-			pos += chunk
+		process_query(query, jserv, mbox)
 
 	for key in args.issues:
 		issue = jserv.jira.issue(key, expand = "changelog")
