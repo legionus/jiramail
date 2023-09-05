@@ -31,7 +31,7 @@ verbosity = 0
 
 
 def verbose(level: int, text: str):
-	if verbosity > level:
+	if verbosity >= level:
 		print(time.strftime("[%H:%M:%S]"), f"level={level}", text, file = sys.stderr, flush = True)
 
 
