@@ -6,6 +6,7 @@ import argparse
 import email
 import mailbox
 import os.path
+import re
 import sys
 import time
 import tomllib
@@ -180,6 +181,35 @@ def get_issue_info(issue, fields):
 	return ret
 
 
+def decode_markdown(message):
+	body = []
+	links = []
+
+	def repl_link(m):
+		links.append(m.group(2))
+		return f"\"{m.group(1)}\"[{len(links)}]"
+
+	def repl_quote(m):
+		return "\n" + "\n".join([ f"> {x}" for x in m.group(1).splitlines() ]) + "\n"
+
+	def repl_code(m):
+		return "\n" + "\n".join([ f"| {x}" for x in m.group(1).splitlines() ]) + "\n"
+
+	message = re.sub(r'\[([^|]+)\|([^\]]+)\]', repl_link, message)
+	message = re.sub(r'{{(.*?)}}', r"\1", message)
+	message = re.sub(r'{quote}(.*?){quote}', repl_quote, message, flags=re.M|re.S)
+	message = re.sub(r'{code:[^}]*}\s*(.*?){code}', repl_code, message, flags=re.M|re.S)
+
+	body.append(message)
+
+	if links:
+		body.append("")
+		for i,link in enumerate(links):
+			body.append(f"[{i+1}] {link}")
+
+	return body
+
+
 def issue_email(issue, date, author, subject, message):
 	mail = email.message.EmailMessage()
 
@@ -218,7 +248,8 @@ def issue_email(issue, date, author, subject, message):
 		body.append("---")
 		body.append("")
 
-	body.append(message)
+	body += decode_markdown(message)
+
 	body.append("")
 	body.append("-- ")
 	body.append(issue.permalink())
@@ -301,7 +332,8 @@ def comment_email(issue, comment, date, author, subject, message):
 		body.append(f"[Visible only to {comment.visibility.value}]")
 		body.append("---")
 
-	body.append(message)
+	body += decode_markdown(message)
+
 	body.append("")
 	body.append("-- ")
 	body.append("{url}?focusedId={commentid}#comment-{commentid}".format(
