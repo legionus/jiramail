@@ -17,6 +17,7 @@ import tomllib
 import pprint
 
 from datetime import datetime
+from typing import Optional, Dict, List, Callable, Any, TextIO
 
 import jiramail
 
@@ -24,12 +25,12 @@ import jira
 import jira.resources
 
 
-jserv = None
-dry_run = False
-no_reply = False
+jserv: jiramail.Connection
+dry_run: bool = False
+no_reply: bool = False
 
 
-def get_issue(key):
+def get_issue(key: str) -> jira.resources.Issue | jiramail.Error:
     try:
         issue = jserv.jira.issue(key)
     except jira.exceptions.JIRAError as e:
@@ -37,7 +38,7 @@ def get_issue(key):
     return issue
 
 
-def command_issue_assign(issue, user_id):
+def command_issue_assign(issue: jira.resources.Issue, user_id: str) -> None | jiramail.Error:
     try:
         if user_id != "%me":
             user = jserv.jira.user(user_id)
@@ -57,7 +58,7 @@ def command_issue_assign(issue, user_id):
     return None
 
 
-def command_issue_comment(issue, text):
+def command_issue_comment(issue: jira.resources.Issue, text: str) -> None | jiramail.Error:
     try:
         if not dry_run:
             jserv.jira.add_comment(issue, text)
@@ -68,7 +69,8 @@ def command_issue_comment(issue, text):
     return None
 
 
-def valid_resource(kind, value, res, getter = None):
+def valid_resource(kind: str, value: str, res: List[jira.resources.Resource],
+                   getter: Optional[Callable[[jira.resources.Resource], str]]=None) -> jira.resources.Resource | jiramail.Error:
     if not getter:
         getter = lambda x: x.name
 
@@ -82,15 +84,17 @@ def valid_resource(kind, value, res, getter = None):
     return jiramail.Error(f"invalid {kind} \"{value}\" for project. Valid: {names}")
 
 
-def append_from(issue, f_id, getter):
+def append_from(issue: jira.resources.Issue, f_id: str,
+                getter: Callable[[jira.resources.Resource], Any]) -> List[Any]:
     try:
         return [ getter(o) for o in issue.get_field(f_id) ]
     except AttributeError:
         return []
 
 
-def command_issue_change(issue, words):
-    fields = {}
+def command_issue_change(issue: jira.resources.Issue,
+                         words: List[str]) -> None | jiramail.Error:
+    fields: Dict[str, Any] = {}
 
     fields_by_id = jserv.jira.editmeta(issue.key)["fields"]
     fields_by_name = {}
@@ -164,8 +168,8 @@ def command_issue_change(issue, words):
                 fields[f_id] = {"name": value}
 
             case "number":
-                if f["custom"]:
-                    if f["schema"]["custom"].endswith(":float"):
+                if "custom" in meta["schema"]:
+                    if meta["schema"]["custom"].endswith(":float"):
                         fields[f_id] = float(value)
                         continue
                 fields[f_id] = int(value)
@@ -187,7 +191,7 @@ def command_issue_change(issue, words):
     return None
 
 
-def command_issue(args):
+def command_issue(args: List[str]) -> None | jiramail.Error:
     if len(args) < 2:
         return jiramail.Error("issue command is too short: {}".format(" ".join(args)))
 
@@ -215,11 +219,12 @@ def command_issue(args):
     return jiramail.Error(f"issue: unknown action: {action}")
 
 
-def get_words(s):
+def get_words(s: str) -> List[str]:
     return [ x for x in re.split(r'("[^"]+"|\'[^\']+\'|\S+)', s) if len(x.strip()) > 0 ]
 
 
-def process_commands(mail, fd, replies):
+def process_commands(mail: Optional[mailbox.Message], fd: TextIO,
+                     replies: List[email.message.EmailMessage]) -> bool:
     ret = True
     out = []
 
@@ -228,11 +233,13 @@ def process_commands(mail, fd, replies):
         if not value:
             break
 
-        m = re.match("^\s*jira\s+(.*)\s*$", value[:-1])
+        line = str(value[:-1])
+
+        m = re.match(r'^\s*jira\s+(.*)\s*$', line)
         if not m:
             continue
 
-        out.append(f"> {value[:-1]}")
+        out.append(f"> {line}")
 
         words = []
         words += get_words(m.group(1))
@@ -243,9 +250,11 @@ def process_commands(mail, fd, replies):
             words.pop()
 
             value = fd.readline()
-            out.append(f"> {value[:-1]}")
+            line = str(value[:-1])
 
-            words += get_words(value)
+            out.append(f"> {line}")
+
+            words += get_words(line)
 
         for i, word in enumerate(words):
             if word.startswith('"') or word.startswith("'"):
@@ -266,20 +275,21 @@ def process_commands(mail, fd, replies):
                     if not value:
                         break
 
-                    out.append(f"> {value[:-1]}")
+                    line = str(value[:-1])
+                    out.append(f"> {line}")
 
-                    token_found = value[:-1] == token
+                    token_found = line == token
                     if token_found:
                         break
 
-                    heredoc.append(value)
+                    heredoc.append(line)
 
                 if not token_found:
                     jiramail.verbose(0, f"enclosing token '{token}' not found")
                     words_valid = False
                     continue
 
-                words[i] = "".join(heredoc)
+                words[i] = "\n".join(heredoc)
 
         if words_valid:
             if len(words) < 1:
@@ -312,27 +322,32 @@ def process_commands(mail, fd, replies):
         if dry_run:
             subject.append("[TEST]")
 
-        subject.append(mail.get("Subject"))
+        msg_id = email.utils.make_msgid()
 
         resp = email.message.EmailMessage()
         resp.add_header("From", "jirachange")
-        resp.add_header("Subject", " ".join(subject))
         resp.add_header("Date", email.utils.format_datetime(datetime.now()))
-        resp.add_header("Message-Id", email.utils.make_msgid())
-        resp.add_header("In-Reply-To", mail.get("Message-Id"))
-        resp.add_header("References", "{parent_id} {msg_id}".format(
-            parent_id = mail.get("Message-Id"),
-            msg_id = resp.get("Message-Id")))
+        resp.add_header("Message-Id", msg_id)
         resp.add_header("Status", "RO")
         resp.add_header("X-Status", "A")
-        resp.set_content("\n".join(out))
 
+        subj = mail.get("Subject")
+        if subj:
+            subject.append(subj)
+        resp.add_header("Subject", " ".join(subject))
+
+        parent_id = mail.get("Message-Id")
+        if parent_id:
+            resp.add_header("In-Reply-To", parent_id)
+            resp.add_header("References", f"{parent_id} {msg_id}")
+
+        resp.set_content("\n".join(out))
         replies.append(resp)
 
     return ret
 
 
-def main(cmdargs):
+def main(cmdargs: argparse.Namespace) -> int:
     global jserv, dry_run, no_reply
 
     jiramail.verbosity = cmdargs.verbose
@@ -345,7 +360,7 @@ def main(cmdargs):
     rc = 0
 
     if cmdargs.mailbox != "-":
-        replies = []
+        replies: List[email.message.EmailMessage] = []
 
         mbox = jiramail.Mailbox(cmdargs.mailbox)
 

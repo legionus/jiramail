@@ -382,7 +382,7 @@ def process_query(query, jserv, mbox):
         pos += chunk
 
 
-def main(cmdargs):
+def main(cmdargs: argparse.Namespace) -> int:
     global jserv, verbosity
 
     jiramail.verbosity = cmdargs.verbose
@@ -402,3 +402,5 @@ def main(cmdargs):
         add_issue(issue, mbox)
 
     mbox.close()
+
+    return 0

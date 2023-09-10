@@ -11,17 +11,17 @@ import sys
 import jiramail
 
 
-def cmd_mbox(cmdargs):
+def cmd_mbox(cmdargs: argparse.Namespace) -> int:
     import jiramail.mbox
-    jiramail.mbox.main(cmdargs)
+    return jiramail.mbox.main(cmdargs)
 
 
-def cmd_change(cmdargs):
+def cmd_change(cmdargs: argparse.Namespace) -> int:
     import jiramail.change
-    jiramail.change.main(cmdargs)
+    return jiramail.change.main(cmdargs)
 
 
-def add_common_arguments(parser):
+def add_common_arguments(parser: argparse.ArgumentParser):
     parser.add_argument("-v", "--verbose",
                         dest="verbose", action='count', default=0,
                         help="print a message for each action")
@@ -86,15 +86,15 @@ allow_abbrev = True)
     return parser
 
 
-def cmd():
+def cmd() -> int:
     parser = setup_parser()
     cmdargs = parser.parse_args()
 
     if 'func' not in cmdargs:
         parser.print_help()
-        sys.exit(1)
+        return 1
 
-    cmdargs.func(cmdargs)
+    return cmdargs.func(cmdargs)
 
 
 if __name__ == '__main__':
@@ -107,8 +107,9 @@ if __name__ == '__main__':
             dotgit = os.path.join(base, '.git')
             ecode, short = jiramail.git_run_command(dotgit, ['rev-parse', '--short', 'HEAD'])
             if ecode == 0:
-                jiramail.__VERSION__ = '%s-%.5s' % (jiramail.__VERSION__, short.strip())
+                jiramail.__VERSION__ = '%s-%.5s' % (jiramail.__VERSION__,
+                                                    str(short.strip()))
     except Exception as ex:
         # Any failures above are non-fatal
         pass
-    cmd()
+    sys.exit(cmd())
