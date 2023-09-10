@@ -107,8 +107,7 @@ if __name__ == '__main__':
             dotgit = os.path.join(base, '.git')
             ecode, short = jiramail.git_run_command(dotgit, ['rev-parse', '--short', 'HEAD'])
             if ecode == 0:
-                jiramail.__VERSION__ = '%s-%.5s' % (jiramail.__VERSION__,
-                                                    str(short.strip()))
+                jiramail.__VERSION__ = '%s-%.5s' % (jiramail.__VERSION__, short.strip())
     except Exception as ex:
         # Any failures above are non-fatal
         pass

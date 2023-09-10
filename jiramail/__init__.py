@@ -116,8 +116,8 @@ def _run_command(cmdargs: List[str], stdin: Optional[bytes] = None,
     return sp.returncode, output, error
 
 
-def git_run_command(gitdir: Optional[str], args: List[str], stdin: Optional[bytes] = None,
-                    logstderr: bool = False, decode: bool = True) -> Tuple[int, Union[str, bytes]]:
+def git_run_command(gitdir: Optional[str], args: List[str],
+                    stdin: Optional[bytes] = None) -> Tuple[int, str]:
     cmdargs = ["git", "--no-pager"]
     if gitdir:
         if os.path.exists(os.path.join(gitdir, ".git")):
@@ -127,16 +127,14 @@ def git_run_command(gitdir: Optional[str], args: List[str], stdin: Optional[byte
 
     ecode, out, err = _run_command(cmdargs, stdin=stdin)
 
-    if decode:
-        out = out.decode(errors="replace")
+    output = out.decode(errors="replace")
 
-    if logstderr and len(err.strip()):
-        if decode:
-            err = err.decode(errors="replace")
-        verbose(0, f"Stderr: {err!r}")
-        out += err
+    if len(err.strip()):
+        error = err.decode(errors="replace")
+        verbose(0, f"Stderr: {error}")
+        output += error
 
-    return ecode, out
+    return ecode, output
 
 
 def read_config():
