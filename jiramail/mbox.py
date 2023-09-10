@@ -7,32 +7,20 @@ __author__ = 'Alexey Gladkov <gladkov.alexey@gmail.com>'
 import argparse
 import email
 import email.utils
+import jira
+import jira.resources
+import jiramail
 import mailbox
 import os.path
+import pprint
 import re
 import sys
 import time
 import tomllib
-import pprint
-import collections
-import collections.abc
-import jiramail
 
 from datetime import datetime
 from datetime import timedelta
-
 from typing import Optional, Dict, List, Union, Any
-
-try:
-    import jira
-    import jira.resources
-except ModuleNotFoundError as e:
-    print("No module named 'jira' (https://github.com/pycontribs/jira).")
-    print(" - in altlinux install: python3-module-jira")
-    print(" - in opensuse install: python-jira")
-    print(" - in debian install: python3-jira")
-    print(" - in fedora install: python-jira")
-    exit(1)
 
 
 jserv: jiramail.Connection

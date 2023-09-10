@@ -8,21 +8,19 @@ import argparse
 import email
 import email.utils
 import io
+import jira
+import jira.resources
+import jiramail
 import mailbox
 import os.path
+import pprint
 import re
 import sys
 import time
 import tomllib
-import pprint
 
 from datetime import datetime
 from typing import Optional, Dict, List, Callable, Any, TextIO
-
-import jiramail
-
-import jira
-import jira.resources
 
 
 jserv: jiramail.Connection
