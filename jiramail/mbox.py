@@ -151,6 +151,7 @@ def issue_email(issue: jira.resources.Issue, date: str, author: User,
     mail.add_header("Date", get_date(date))
     mail.add_header("From", str(author))
     mail.add_header("Message-Id", f"<v{subject.version}-{issue.id}@issue.jira>")
+    mail.add_header("Reply-To", "change@jira")
 
     if subject.version > 1:
         parent_msg_id = f"<v1-{issue.id}@issue.jira>"
@@ -205,6 +206,7 @@ def changes_email(issue_id: str, change_id: str, date: str, author: User,
     mail.add_header("Date", get_date(date))
     mail.add_header("From", str(author))
     mail.add_header("Message-Id", f"<{issue_id}-{change_id}@changes.issue.jira>")
+    mail.add_header("Reply-To", "change@jira")
 
     parent_msg_id = f"<v1-{issue_id}@issue.jira>"
 
@@ -257,6 +259,7 @@ def comment_email(issue: jira.resources.Issue, comment: jira.resources.Comment,
     mail.add_header("Date", get_date(date))
     mail.add_header("From", str(author))
     mail.add_header("Message-Id", f"<{issue.id}-{comment.id}@comment.issue.jira>")
+    mail.add_header("Reply-To", "change@jira")
 
     mail.add_header("In-Reply-To", parent_msg_id)
     mail.add_header("References", "{parent_id} {msg_id}".format(
