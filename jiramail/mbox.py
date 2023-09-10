@@ -148,18 +148,18 @@ def issue_email(issue: jira.resources.Issue, date: str, author: User,
                 subject: Subject, message: str) -> email.message.EmailMessage:
     mail = email.message.EmailMessage()
 
+    msg_id = f"<v{subject.version}-{issue.id}@issue.jira>"
+
     mail.add_header("Date", get_date(date))
     mail.add_header("From", str(author))
-    mail.add_header("Message-Id", f"<v{subject.version}-{issue.id}@issue.jira>")
+    mail.add_header("Message-Id", msg_id)
     mail.add_header("Reply-To", "change@jira")
 
     if subject.version > 1:
-        parent_msg_id = f"<v1-{issue.id}@issue.jira>"
+        parent_id = f"<v1-{issue.id}@issue.jira>"
 
-        mail.add_header("In-Reply-To", parent_msg_id)
-        mail.add_header("References", "{parent_id} {msg_id}".format(
-            parent_id = parent_msg_id,
-            msg_id = mail.get("Message-Id")))
+        mail.add_header("In-Reply-To", parent_id)
+        mail.add_header("References", f"{parent_id} {msg_id}")
 
         subject.action = "U:"
     else:
@@ -200,20 +200,17 @@ def changes_email(issue_id: str, change_id: str, date: str, author: User,
                   subject: Subject, changes: List[Any]) -> email.message.EmailMessage:
     mail = email.message.EmailMessage()
 
+    msg_id = f"<{issue_id}-{change_id}@changes.issue.jira>"
+    parent_id = f"<v1-{issue_id}@issue.jira>"
     subject.action = "U:"
     status = ""
 
     mail.add_header("Date", get_date(date))
     mail.add_header("From", str(author))
-    mail.add_header("Message-Id", f"<{issue_id}-{change_id}@changes.issue.jira>")
+    mail.add_header("Message-Id", msg_id)
     mail.add_header("Reply-To", "change@jira")
-
-    parent_msg_id = f"<v1-{issue_id}@issue.jira>"
-
-    mail.add_header("In-Reply-To", parent_msg_id)
-    mail.add_header("References", "{parent_id} {msg_id}".format(
-        parent_id = parent_msg_id,
-        msg_id = mail.get("Message-Id")))
+    mail.add_header("In-Reply-To", parent_id)
+    mail.add_header("References", f"{parent_id} {msg_id}")
 
     name_len = 0
     old_len  = 0
@@ -252,19 +249,17 @@ def comment_email(issue: jira.resources.Issue, comment: jira.resources.Comment,
                   date: str, author: User, subject: Subject, message: str) -> email.message.EmailMessage:
     mail = email.message.EmailMessage()
 
-    parent_msg_id = f"<v1-{issue.id}@issue.jira>"
+    msg_id = f"<{issue.id}-{comment.id}@comment.issue.jira>"
+    parent_id = f"<v1-{issue.id}@issue.jira>"
     subject.action = "C:"
 
     mail.add_header("Subject", str(subject))
     mail.add_header("Date", get_date(date))
     mail.add_header("From", str(author))
-    mail.add_header("Message-Id", f"<{issue.id}-{comment.id}@comment.issue.jira>")
+    mail.add_header("Message-Id", msg_id)
     mail.add_header("Reply-To", "change@jira")
-
-    mail.add_header("In-Reply-To", parent_msg_id)
-    mail.add_header("References", "{parent_id} {msg_id}".format(
-        parent_id = parent_msg_id,
-        msg_id = mail.get("Message-Id")))
+    mail.add_header("In-Reply-To", parent_id)
+    mail.add_header("References", f"{parent_id} {msg_id}")
 
     body = []
 
