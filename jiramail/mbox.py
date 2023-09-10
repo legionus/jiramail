@@ -6,6 +6,7 @@ __author__ = 'Alexey Gladkov <gladkov.alexey@gmail.com>'
 
 import argparse
 import email
+import email.utils
 import mailbox
 import os.path
 import re
@@ -13,11 +14,14 @@ import sys
 import time
 import tomllib
 import pprint
-
+import collections
+import collections.abc
 import jiramail
 
 from datetime import datetime
 from datetime import timedelta
+
+from typing import Optional, Dict, List, Union, Any
 
 try:
     import jira
@@ -31,8 +35,7 @@ except ModuleNotFoundError as e:
     exit(1)
 
 
-jserv = None
-verbosity = 0
+jserv: jiramail.Connection
 
 
 class Subject:
@@ -42,7 +45,7 @@ class Subject:
         self.text = text
         self.action = ""
 
-    def __str__(self):
+    def __str__(self) -> str:
         subj = [ f"[{self.key}]" ]
         if self.action:
             subj.append(self.action)
@@ -51,20 +54,52 @@ class Subject:
         return " ".join(subj)
 
 
+class User:
+    def __init__(self, user: Any):
+        self.name = ""
+        self.addr = "unknown"
+
+        if isinstance(user, jira.resources.UnknownResource) or \
+                isinstance(user, jira.resources.User):
+            self.from_resource(user)
+
+    def __str__(self) -> str:
+        return email.utils.formataddr((self.name, self.addr), charset='utf-8')
+
+    def to_string(self) -> str:
+        return str(self)
+
+    def from_resource(self, user: Union[jira.resources.UnknownResource,
+                                        jira.resources.User]):
+        if hasattr(user, "displayName"):
+            self.name = user.displayName
+        if hasattr(user, "emailAddress"):
+            self.addr = user.emailAddress
+
+
+class Property:
+    def __init__(self, prop: jira.resources.PropertyHolder):
+        self.prop = prop
+        self.id = getattr(prop, "id")
+        self.created = getattr(prop, "created")
+        self.author = getattr(prop, "author")
+        self.items = getattr(prop, "items", [])
+
+
 def chain(*iterables):
     for it in iterables:
         for element in it:
             yield element
 
 
-def has_attrs(o, attrs):
+def has_attrs(o: object, attrs: List[str]) -> bool:
     for attr in attrs:
         if not hasattr(o, attr):
             return False
     return True
 
 
-def get_issue_field(issue, name):
+def get_issue_field(issue, name) -> Optional[Any]:
     try:
         return issue.get_field(field_name=name)
     except AttributeError:
@@ -76,18 +111,6 @@ def get_issue_field(issue, name):
         except AttributeError:
             pass
     return None
-
-
-def get_user(user):
-    name = ""
-    addr = "unknown"
-
-    if hasattr(user, "displayName"):
-        name = user.displayName
-    if hasattr(user, "emailAddress"):
-        addr = user.emailAddress
-
-    return email.utils.formataddr((name, addr), charset='utf-8')
 
 
 def get_date(data):
@@ -133,11 +156,12 @@ def decode_markdown(message):
     return body
 
 
-def issue_email(issue, date, author, subject, message):
+def issue_email(issue: jira.resources.Issue, date: str, author: User,
+                subject: Subject, message: str) -> email.message.EmailMessage:
     mail = email.message.EmailMessage()
 
     mail.add_header("Date", get_date(date))
-    mail.add_header("From", get_user(author))
+    mail.add_header("From", str(author))
     mail.add_header("Message-Id", f"<v{subject.version}-{issue.id}@issue.jira>")
 
     if subject.version > 1:
@@ -183,14 +207,15 @@ def issue_email(issue, date, author, subject, message):
     return mail
 
 
-def changes_email(issue_id, change_id, date, author, subject, changes):
+def changes_email(issue_id: str, change_id: str, date: str, author: User,
+                  subject: Subject, changes: List[Any]) -> email.message.EmailMessage:
     mail = email.message.EmailMessage()
 
     subject.action = "U:"
     status = ""
 
     mail.add_header("Date", get_date(date))
-    mail.add_header("From", get_user(author))
+    mail.add_header("From", str(author))
     mail.add_header("Message-Id", f"<{issue_id}-{change_id}@changes.issue.jira>")
 
     parent_msg_id = f"<v1-{issue_id}@issue.jira>"
@@ -233,7 +258,8 @@ def changes_email(issue_id, change_id, date, author, subject, changes):
     return mail
 
 
-def comment_email(issue, comment, date, author, subject, message):
+def comment_email(issue: jira.resources.Issue, comment: jira.resources.Comment,
+                  date: str, author: User, subject: Subject, message: str) -> email.message.EmailMessage:
     mail = email.message.EmailMessage()
 
     parent_msg_id = f"<v1-{issue.id}@issue.jira>"
@@ -241,7 +267,7 @@ def comment_email(issue, comment, date, author, subject, message):
 
     mail.add_header("Subject", str(subject))
     mail.add_header("Date", get_date(date))
-    mail.add_header("From", get_user(author))
+    mail.add_header("From", str(author))
     mail.add_header("Message-Id", f"<{issue.id}-{comment.id}@comment.issue.jira>")
 
     mail.add_header("In-Reply-To", parent_msg_id)
@@ -269,16 +295,16 @@ def comment_email(issue, comment, date, author, subject, message):
     return mail
 
 
-def add_issue(issue, mbox):
+def add_issue(issue: jira.resources.Issue, mbox: jiramail.Mailbox):
     jiramail.verbose(2, f"processing issue {issue.key} ...")
     #pprint.pprint(issue.raw)
 
-    date = get_issue_field(issue, "created")
-    summary = get_issue_field(issue, "summary")
-    description = get_issue_field(issue, "description")
+    date = str(get_issue_field(issue, "created"))
+    summary = str(get_issue_field(issue, "summary"))
+    description = str(get_issue_field(issue, "description"))
 
-    history = None
-    changes = []
+    history: Optional[Property] = None
+    changes: List[str] = []
 
     subject = Subject(issue.key, summary)
 
@@ -292,33 +318,39 @@ def add_issue(issue, mbox):
                 # The object doesn't look like an issue state change.
                 continue
 
+            prop = Property(el)
+
             if history:
                 t1 = datetime.fromisoformat(history.created)
             else:
                 t1 = datetime.fromisoformat("1970-01-01T00:00:01.000+0000")
-            t2 = datetime.fromisoformat(el.created)
+            t2 = datetime.fromisoformat(prop.created)
 
-            if changes and (
-                    el.author.emailAddress != history.author.emailAddress or
+            if changes and history and (
+                    prop.author.emailAddress != history.author.emailAddress or
                     (t2 - t1) >= timedelta(hours = 1)):
-                mail = changes_email(issue.id, history.id, history.created, history.author, subject, changes)
+                mail = changes_email(issue.id, history.id, history.created,
+                                     User(history.author), subject, changes)
                 mbox.append(mail)
                 changes = []
 
-            for item in el.items:
+            for item in prop.items:
                 if not has_attrs(item, ["fieldtype", "field"]):
                     continue
 
                 if item.fieldtype == "jira" and item.field == "description":
                     if changes:
-                        mail = changes_email(issue.id, el.id + "-0", el.created, el.author, subject, changes)
+                        mail = changes_email(issue.id, prop.id + "-0",
+                                             prop.created, User(prop.author),
+                                             subject, changes)
                         mbox.append(mail)
                         changes = []
 
-                    mail = issue_email(issue, date, el.author, subject, item.fromString or "")
+                    mail = issue_email(issue, date, User(prop.author), subject,
+                                       item.fromString or "")
                     mbox.append(mail)
 
-                    date = el.created
+                    date = prop.created
                     subject.version += 1
                     continue
 
@@ -331,7 +363,7 @@ def add_issue(issue, mbox):
                 if item.fromString or item.toString:
                     changes.append(item)
 
-            history = el
+            history = prop
             continue
 
         if isinstance(el, jira.resources.Comment):
@@ -346,18 +378,19 @@ def add_issue(issue, mbox):
         jiramail.verbose(0, f"unknown history item: {repr(el)}")
 
     if history and changes:
-        mail = changes_email(issue.id, history.id, history.created, history.author, subject, changes)
+        mail = changes_email(issue.id, history.id, history.created,
+                             User(history.author), subject, changes)
         mbox.append(mail)
 
     history = None
     changes = []
 
-    mail = issue_email(issue, date, issue.fields.reporter, subject, description or "")
-    mail.add_header("To", get_user(issue.fields.assignee))
+    mail = issue_email(issue, date, User(issue.fields.reporter), subject, description or "")
+    mail.add_header("To", User(issue.fields.assignee).to_string())
     mbox.append(mail)
 
 
-def process_query(query, jserv, mbox):
+def process_query(query: str, mbox: jiramail.Mailbox):
     pos = 0
     chunk = 50
 
@@ -392,10 +425,10 @@ def main(cmdargs: argparse.Namespace) -> int:
     mbox = jiramail.Mailbox(cmdargs.mailbox)
 
     for username in cmdargs.assignee:
-        process_query(f"assignee = '{username}'", jserv, mbox)
+        process_query(f"assignee = '{username}'", mbox)
 
     for query in cmdargs.queries:
-        process_query(query, jserv, mbox)
+        process_query(query, mbox)
 
     for key in cmdargs.issues:
         issue = jserv.jira.issue(key, expand = "changelog")
