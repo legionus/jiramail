@@ -69,10 +69,10 @@ def command_issue_comment(issue: jira.resources.Issue, text: str) -> None | jira
     return None
 
 
-def valid_resource(kind: str, value: str, res: List[jira.resources.Resource],
-                   getter: Optional[Callable[[jira.resources.Resource], str]]=None) -> jira.resources.Resource | jiramail.Error:
+def valid_resource(kind: str, value: str, res: List[Dict[str, Any]],
+                   getter: Optional[Callable[[Dict[str, Any]], str]]=None) -> Dict[str, Any] | jiramail.Error:
     if not getter:
-        getter = lambda x: x.name
+        getter = lambda x: x["name"]
 
     value = value.lower()
 
