@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2023  Alexey Gladkov <gladkov.alexey@gmail.com>
 
+__author__ = 'Alexey Gladkov <gladkov.alexey@gmail.com>'
+
 import argparse
 import email
 import mailbox
@@ -11,6 +13,8 @@ import sys
 import time
 import tomllib
 import pprint
+
+import jiramail
 
 from datetime import datetime
 from datetime import timedelta
@@ -31,66 +35,6 @@ jserv = None
 verbosity = 0
 
 
-def verbose(level, text):
-	if verbosity >= level:
-		print(time.strftime("[%H:%M:%S]"), f"level={level}", text, file = sys.stderr, flush = True)
-
-
-class Connection:
-	def __init__(self, config_jira):
-		self.config = config_jira
-		self._fields = None
-
-		options = {
-			"check_update": False,
-		}
-
-		verbose(2, f"connecting to JIRA ...")
-
-		if self.config["auth"] == "token":
-			self.jira = jira.JIRA(self.config["server"],
-					token_auth=self.config["token"],
-					options = options)
-		elif self.config["auth"] == "basic":
-			self.jira = jira.JIRA(self.config["server"],
-					basic_auth=(
-						self.config["user"],
-						self.config["password"]),
-					options = options)
-		else:
-			raise KeyError(f"Unknown method: jira.auth: " + self.config.get("auth", "<missing>"))
-
-		verbose(1, "connected to JIRA")
-
-	def fields(self):
-		if not self._fields:
-			self._fields = self.jira.fields()
-		return self._fields
-
-
-class Mailbox:
-	def __init__(self, path):
-		verbose(2, f"openning the mailbox {path} ...")
-
-		self.mbox = mailbox.mbox(path)
-		self.msgid = {}
-
-		for key in self.mbox.iterkeys():
-			mail = self.mbox.get_message(key)
-			if "Message-Id" in mail:
-				msg_id = mail.get("Message-Id")
-				self.msgid[msg_id] = True
-
-		verbose(1, "mailbox is ready")
-
-	def append(self, mail):
-		if mail.get("Message-Id") not in self.msgid:
-			self.mbox.add(mail)
-
-	def close(self):
-		self.mbox.close()
-
-
 class Subject:
 	def __init__(self, key, text):
 		self.version = 1
@@ -105,28 +49,6 @@ class Subject:
 		if self.text:
 			subj.append(self.text)
 		return " ".join(subj)
-
-
-def read_config():
-	config = None
-
-	for config_file in [ "~/.jiramail", "~/.config/jiramail/config" ]:
-		config_file = os.path.expanduser(config_file)
-
-		if not os.path.exists(config_file):
-			continue
-
-		verbose(2, f"picking config file `{config_file}' ...")
-
-		with open(config_file, "rb") as fd:
-			config = tomllib.load(fd)
-			break
-
-	if not config:
-		raise Exception("config file not found")
-
-	verbose(1, "config has been read")
-	return config
 
 
 def chain(*iterables):
@@ -147,9 +69,10 @@ def get_issue_field(issue, name):
 		return issue.get_field(field_name=name)
 	except AttributeError:
 		pass
-	for f_id in [ f["schema"]["customId"] for f in jserv.fields() if f["name"].lower() == name.lower() ]:
+	field = jserv.field_by_name(name.lower(), None)
+	if field:
 		try:
-			return issue.get_field(f"customfield_{f_id}")
+			return issue.get_field(field["id"])
 		except AttributeError:
 			pass
 	return None
@@ -347,7 +270,7 @@ def comment_email(issue, comment, date, author, subject, message):
 
 
 def add_issue(issue, mbox):
-	verbose(2, f"processing issue {issue.key} ...")
+	jiramail.verbose(2, f"processing issue {issue.key} ...")
 	#pprint.pprint(issue.raw)
 
 	date = get_issue_field(issue, "created")
@@ -420,7 +343,7 @@ def add_issue(issue, mbox):
 			mbox.append(mail)
 			continue
 
-		verbose(0, f"unknown history item: {repr(el)}")
+		jiramail.verbose(0, f"unknown history item: {repr(el)}")
 
 	if history and changes:
 		mail = changes_email(issue.id, history.id, history.created, history.author, subject, changes)
@@ -438,7 +361,7 @@ def process_query(query, jserv, mbox):
 	pos = 0
 	chunk = 50
 
-	verbose(2, f"processing query `{query}` ...")
+	jiramail.verbose(2, f"processing query `{query}` ...")
 
 	while True:
 		res = jserv.jira.search_issues(query,
@@ -449,7 +372,7 @@ def process_query(query, jserv, mbox):
 			break
 
 		if pos == 0:
-			verbose(1, f"query `{query}` found {res.total} issues")
+			jiramail.verbose(1, f"query `{query}` found {res.total} issues")
 
 		for issue in res:
 			add_issue(issue, mbox)
@@ -459,66 +382,25 @@ def process_query(query, jserv, mbox):
 		pos += chunk
 
 
-def parse_aruments():
-	parser = argparse.ArgumentParser(
-			prog = "jiramail",
-			formatter_class = argparse.RawDescriptionHelpFormatter,
-			description = """
-Saves JIRA issues in mailbox format. Issues are saved along with all comments.
-Changes made to the issue are also saved in the form of emails.
-""",
-			epilog = "Report bugs to authors.",
-			allow_abbrev = True)
-
-	parser.add_argument('-v', '--verbose',
-			dest = "verbose", action = 'count', default = 0,
-			help = "print a message for each action")
-
-	parser.add_argument("--assignee",
-			dest = "assignee", default = [], action = "append", metavar = "USER",
-			help = "search for all issues that belong to the USER")
-
-	parser.add_argument("--query",
-			dest = "queries", default = [], action = "append", metavar = "JQL",
-			help = "jira query string.")
-
-	parser.add_argument("--issue",
-			dest = "issues", default = [], action = "append", metavar = "ISSUE-123",
-			help = "specify the issues to export")
-
-	parser.add_argument("outname",
-			help = "path to mbox where emails should be added")
-
-	return parser.parse_args()
-
-
-def main():
+def main(cmdargs):
 	global jserv, verbosity
 
-	args = parse_aruments()
-	verbosity = args.verbose
+	jiramail.verbosity = cmdargs.verbose
 
-	config = read_config()
-	jserv = Connection(config.get("jira", {}))
-	mbox = Mailbox(args.outname)
+	config = jiramail.read_config()
+	jserv = jiramail.Connection(config.get("jira", {}))
+	mbox = jiramail.Mailbox(cmdargs.mailbox)
 
-	for username in args.assignee:
+	for username in cmdargs.assignee:
 		process_query(f"assignee = '{username}'", jserv, mbox)
 
-	for query in args.queries:
+	for query in cmdargs.queries:
 		process_query(query, jserv, mbox)
 
-	for key in args.issues:
+	for key in cmdargs.issues:
 		issue = jserv.jira.issue(key, expand = "changelog")
 		add_issue(issue, mbox)
 
 	mbox.close()
-
-
-if __name__ == '__main__':
-	try:
-		main()
-	except KeyboardInterrupt:
-		exit(1)
 
 # vim: ft=python tw=200 noexpandtab

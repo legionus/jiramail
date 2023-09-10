@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2023  Alexey Gladkov <gladkov.alexey@gmail.com>
 
+__author__ = 'Alexey Gladkov <gladkov.alexey@gmail.com>'
+
 import argparse
 import email
 import email.utils
@@ -16,63 +18,22 @@ import pprint
 
 from datetime import datetime
 
-try:
-	import jira
-	import jira.resources
-except ModuleNotFoundError as e:
-	print("No module named 'jira' (https://github.com/pycontribs/jira).")
-	print(" - in altlinux install: python3-module-jira")
-	print(" - in opensuse install: python-jira")
-	print(" - in debian install: python3-jira")
-	print(" - in fedora install: python-jira")
-	exit(1)
+import jiramail
+
+import jira
+import jira.resources
 
 
-args = None
 jserv = None
-
-
-def verbose(level, text):
-	if args.verbose >= level:
-		print(time.strftime("[%H:%M:%S]"), f"level={level}", text, file = sys.stderr, flush = True)
-
-
-class Connection:
-	def __init__(self, config_jira):
-		self.config = config_jira
-
-		options = {
-			"check_update": False,
-		}
-
-		verbose(2, f"connecting to JIRA ...")
-
-		if self.config["auth"] == "token":
-			self.jira = jira.JIRA(self.config["server"],
-					token_auth=self.config["token"],
-					options = options)
-		elif self.config["auth"] == "basic":
-			self.jira = jira.JIRA(self.config["server"],
-					basic_auth=(
-						self.config["user"],
-						self.config["password"]),
-					options = options)
-		else:
-			raise KeyError(f"Unknown method: jira.auth: " + self.config.get("auth", "<missing>"))
-
-		verbose(1, "connected to JIRA")
-
-
-class Error:
-	def __init__(self, message):
-		self.message = message
+dry_run = False
+no_reply = False
 
 
 def get_issue(key):
 	try:
 		issue = jserv.jira.issue(key)
 	except jira.exceptions.JIRAError as e:
-		return Error(f"unable to get {key} issue: {e.text}")
+		return jiramail.Error(f"unable to get {key} issue: {e.text}")
 	return issue
 
 
@@ -84,25 +45,25 @@ def command_issue_assign(issue, user_id):
 			user = jserv.jira.session()
 
 	except jira.exceptions.JIRAError as e:
-		return Error(f"unable to get \"{user_id}\" user: {e.text}")
+		return jiramail.Error(f"unable to get \"{user_id}\" user: {e.text}")
 
 	try:
-		if not args.dry_run:
+		if not dry_run:
 			jserv.jira.assign_issue(issue.key, user.name)
 
 	except jira.exceptions.JIRAError as e:
-		return Error(f"unable to assign issue: {e}")
+		return jiramail.Error(f"unable to assign issue: {e}")
 
 	return None
 
 
 def command_issue_comment(issue, text):
 	try:
-		if not args.dry_run:
+		if not dry_run:
 			jserv.jira.add_comment(issue, text)
 
 	except jira.exceptions.JIRAError as e:
-		return Error(f"unable to add comment to issue {issue.key}: {e}")
+		return jiramail.Error(f"unable to add comment to issue {issue.key}: {e}")
 
 	return None
 
@@ -118,7 +79,7 @@ def valid_resource(kind, value, res, getter = None):
 			return x
 
 	names = ", ".join([ "\"{}\"".format(getter(x)) for x in res ])
-	return Error(f"invalid {kind} \"{value}\" for project. Valid: {names}")
+	return jiramail.Error(f"invalid {kind} \"{value}\" for project. Valid: {names}")
 
 
 def append_from(issue, f_id, getter):
@@ -148,7 +109,7 @@ def command_issue_change(issue, words):
 			case "set" | "=":
 				action = "set"
 			case _:
-				return Error(f"unknown operator \"{action}\"")
+				return jiramail.Error(f"unknown operator \"{action}\"")
 
 		if len(value) == 0:
 			value = None
@@ -157,22 +118,22 @@ def command_issue_change(issue, words):
 		if not f_id:
 			obj = fields_by_id.get(name, None)
 			if not obj:
-				return Error(f"the field \"{name}\" not found")
+				return jiramail.Error(f"the field \"{name}\" not found")
 			f_id = name
 
 		meta = fields_by_id[f_id]
 
 		if len(meta["operations"]) > 0 and action not in meta["operations"]:
-			return Error(f"operation \"{action}\" not supported for field \"{meta['name']}\"")
+			return jiramail.Error(f"operation \"{action}\" not supported for field \"{meta['name']}\"")
 
-		verbose(3, f"FIELD id=({f_id}) name=({meta['name']})")
+		jiramail.verbose(3, f"FIELD id=({f_id}) name=({meta['name']})")
 
 		if "allowedValues" in meta:
 			obj = valid_resource(meta["name"], value,
 					meta["allowedValues"],
 					lambda x: x["value"] if "value" in x else x["name"])
 
-			if isinstance(obj, Error):
+			if isinstance(obj, jiramail.Error):
 				return obj
 
 		match meta["schema"]["type"]:
@@ -214,48 +175,49 @@ def command_issue_change(issue, words):
 
 	try:
 		if fields:
-			if not args.dry_run:
+			if not dry_run:
 				issue.update(fields=fields)
 			else:
-				verbose(3, pprint.pformat(fields))
+				jiramail.verbose(3, pprint.pformat(fields))
 
 	except jira.exceptions.JIRAError as e:
 		err = e.response.json()["errors"]
-		return Error(f"unable to change fields of issue {issue.key}: {err}")
+		return jiramail.Error(f"unable to change fields of issue {issue.key}: {err}")
 
 	return None
 
 
 def command_issue(args):
 	if len(args) < 2:
-		return Error("issue command is too short: {}".format(" ".join(args)))
+		return jiramail.Error("issue command is too short: {}".format(" ".join(args)))
 
 	key = args.pop(0)
 	action = args.pop(0)
 
 	issue = get_issue(key)
-	if isinstance(issue, Error):
+	if isinstance(issue, jiramail.Error):
 		return issue
 
 	match action:
 		case "assign":
 			if len(args) < 1:
-				return Error("'assign' keyword requires argument")
+				return jiramail.Error("'assign' keyword requires argument")
 			return command_issue_assign(issue, args[0])
 		case "comment":
 			if len(args) < 1:
-				return Error("'comment' keyword requires argument")
+				return jiramail.Error("'comment' keyword requires argument")
 			return command_issue_comment(issue, args[0])
 		case "change":
 			if len(args) % 3 != 0:
-				return Error("'change' keyword requires at least 3 arguments")
+				return jiramail.Error("'change' keyword requires at least 3 arguments")
 			return command_issue_change(issue, args)
 
-	return Error(f"issue: unknown action: {action}")
+	return jiramail.Error(f"issue: unknown action: {action}")
 
 
 def get_words(s):
 	return [ x for x in re.split(r'("[^"]+"|\'[^\']+\'|\S+)', s) if len(x.strip()) > 0 ]
+
 
 def process_commands(mail, fd, replies):
 	ret = True
@@ -289,7 +251,7 @@ def process_commands(mail, fd, replies):
 			if word.startswith('"') or word.startswith("'"):
 				words[i] = word[1:-1]
 
-		verbose(2, f"processing command: {words}")
+		jiramail.verbose(2, f"processing command: {words}")
 
 		words_valid = True
 
@@ -313,7 +275,7 @@ def process_commands(mail, fd, replies):
 					heredoc.append(value)
 
 				if not token_found:
-					verbose(0, f"enclosing token '{token}' not found")
+					jiramail.verbose(0, f"enclosing token '{token}' not found")
 					words_valid = False
 					continue
 
@@ -321,7 +283,7 @@ def process_commands(mail, fd, replies):
 
 		if words_valid:
 			if len(words) < 1:
-				verbose(0, "command is too short: {}".format(" ".join(words)))
+				jiramail.verbose(0, "command is too short: {}".format(" ".join(words)))
 				words_valid = False
 
 		if words_valid:
@@ -329,8 +291,8 @@ def process_commands(mail, fd, replies):
 
 			if words[0] == "issue":
 				r = command_issue(words[1:])
-				if isinstance(r, Error):
-					verbose(0, f"{r.message}")
+				if isinstance(r, jiramail.Error):
+					jiramail.verbose(0, f"{r.message}")
 					out.append(f"ERROR: {r.message}")
 					ret = False
 				else:
@@ -341,13 +303,13 @@ def process_commands(mail, fd, replies):
 
 			out.append("")
 
-	if out and mail and not args.no_reply:
+	if out and mail and not no_reply:
 		subject = []
 		if ret:
 			subject.append("[DONE]")
 		else:
 			subject.append("[FAIL]")
-		if args.dry_run:
+		if dry_run:
 			subject.append("[TEST]")
 
 		subject.append(mail.get("Subject"))
@@ -370,69 +332,22 @@ def process_commands(mail, fd, replies):
 	return ret
 
 
-def read_config():
-	config = None
+def main(cmdargs):
+	global jserv, dry_run, no_reply
 
-	for config_file in [ "~/.jiramail", "~/.config/jiramail/config" ]:
-		config_file = os.path.expanduser(config_file)
+	jiramail.verbosity = cmdargs.verbose
+	dry_run = cmdargs.dry_run
+	no_reply = cmdargs.no_reply
 
-		if not os.path.exists(config_file):
-			continue
-
-		verbose(2, f"picking config file `{config_file}' ...")
-
-		with open(config_file, "rb") as fd:
-			config = tomllib.load(fd)
-			break
-
-	if not config:
-		raise Exception("config file not found")
-
-	verbose(1, "config has been read")
-	return config
-
-
-def parse_aruments():
-	parser = argparse.ArgumentParser(
-			formatter_class = argparse.RawDescriptionHelpFormatter,
-			description = """
-Reads mailbox and makes changes in JIRA.
-""",
-			epilog = "Report bugs to authors.",
-			allow_abbrev = True)
-
-	parser.add_argument('-v', '--verbose',
-			dest = "verbose", action = 'count', default = 0,
-			help = "print a message for each action")
-
-	parser.add_argument('-n', '--dry-run',
-			dest = "dry_run", action = 'store_true',
-			help = "do not act, just print what would happen")
-
-	parser.add_argument('-r', '--no-reply',
-			dest = "no_reply", action = 'store_true',
-			help = "do not add a reply message with the status of command execution")
-
-	parser.add_argument("mailbox",
-			help = "path to mbox with commands")
-
-	return parser.parse_args()
-
-
-def main():
-	global jserv, args
-
-	args = parse_aruments()
-
-	config = read_config()
-	jserv = Connection(config.get("jira", {}))
+	config = jiramail.read_config()
+	jserv = jiramail.Connection(config.get("jira", {}))
 
 	rc = 0
 
-	if args.mailbox != "-":
+	if cmdargs.mailbox != "-":
 		replies = []
 
-		mbox = mailbox.mbox(args.mailbox)
+		mbox = jiramail.Mailbox(cmdargs.mailbox)
 
 		for key in mbox.iterkeys():
 			mail = mbox.get_message(key)
@@ -453,10 +368,10 @@ def main():
 					rc = 1
 
 				mail.set_flags("ROA")
-				mbox.update([(key, mail)])
+				mbox.update_message(key, mail)
 
 		for mail in replies:
-			mbox.add(mail)
+			mbox.append(mail)
 
 		mbox.close()
 
@@ -464,14 +379,5 @@ def main():
 		rc = 1
 
 	return rc
-
-
-if __name__ == '__main__':
-	rc = 0
-	try:
-		rc = main()
-	except KeyboardInterrupt:
-		rc = 1
-	exit(rc)
 
 # vim: ft=python tw=200 noexpandtab

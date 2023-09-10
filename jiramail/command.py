@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2023  Alexey Gladkov <gladkov.alexey@gmail.com>
+
+__author__ = 'Alexey Gladkov <gladkov.alexey@gmail.com>'
+
+import argparse
+import logging
+import sys
+
+import jiramail
+
+
+def cmd_mbox(cmdargs):
+    import jiramail.mbox
+    jiramail.mbox.main(cmdargs)
+
+
+def cmd_change(cmdargs):
+    import jiramail.change
+    jiramail.change.main(cmdargs)
+
+
+def add_common_arguments(parser):
+    parser.add_argument("-v", "--verbose",
+                        dest="verbose", action='count', default=0,
+                        help="print a message for each action")
+    parser.add_argument("-V", "--version",
+                        action='version',
+                        version=jiramail.__VERSION__)
+
+
+def setup_parser() -> argparse.ArgumentParser:
+    # noinspection PyTypeChecker
+    parser = argparse.ArgumentParser(
+            prog = "jiramail",
+            formatter_class = argparse.RawDescriptionHelpFormatter,
+            description = """
+Saves JIRA issues in mailbox format. Issues are saved along with all comments.
+Changes made to the issue are also saved in the form of emails.
+""",
+epilog = "Report bugs to authors.",
+allow_abbrev = True)
+
+    subparsers = parser.add_subparsers(dest="subcmd", help="sub-command help")
+
+    # jiramail mbox
+    sp0 = subparsers.add_parser("mbox",
+                                help="download one or more jira issue as an mbox file",
+                                epilog = "Report bugs to authors.")
+    sp0.set_defaults(func=cmd_mbox)
+    add_common_arguments(sp0)
+
+    sp0.add_argument("--assignee",
+                     dest="assignee", action="append", default=[], metavar="USER",
+                     help="search for all issues that belong to the USER")
+    sp0.add_argument("--query",
+                     dest="queries", action="append", default=[], metavar="JQL",
+                     help="jira query string.")
+    sp0.add_argument("--issue",
+                     dest="issues", action="append", default=[], metavar="ISSUE-123",
+                     help="specify the issues to export")
+    sp0.add_argument("mailbox",
+                     help = "path to mbox where emails should be added")
+
+    # jiramail change
+    sp1 = subparsers.add_parser("change",
+                                help="reads mailbox and makes changes in JIRA.",
+                                epilog = "Report bugs to authors.")
+    sp1.set_defaults(func=cmd_change)
+    add_common_arguments(sp1)
+
+    sp1.add_argument("-n", "--dry-run",
+                     dest="dry_run", action="store_true",
+                     help="do not act, just print what would happen")
+    sp1.add_argument("-r", "--no-reply",
+                     dest="no_reply", action="store_true",
+                     help="do not add a reply message with the status of command execution")
+    sp1.add_argument("mailbox",
+                     help="path to mbox with commands")
+
+    return parser
+
+
+def cmd():
+    parser = setup_parser()
+    cmdargs = parser.parse_args()
+
+    if 'func' not in cmdargs:
+        parser.print_help()
+        sys.exit(1)
+
+    cmdargs.func(cmdargs)
+
+
+if __name__ == '__main__':
+    # We're running from a checkout, so reflect git commit in the version
+    import os
+    # noinspection PyBroadException
+    try:
+        if jiramail.__VERSION__.find('-dev') > 0:
+            base = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+            dotgit = os.path.join(base, '.git')
+            ecode, short = jiramail.git_run_command(dotgit, ['rev-parse', '--short', 'HEAD'])
+            if ecode == 0:
+                jiramail.__VERSION__ = '%s-%.5s' % (jiramail.__VERSION__, short.strip())
+    except Exception as ex:
+        # Any failures above are non-fatal
+        pass
+    cmd()
