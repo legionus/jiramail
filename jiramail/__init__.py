@@ -25,11 +25,12 @@ class Error:
 
 class Connection:
     def __init__(self, config_jira: Dict[str, Any]):
-        self.config = config_jira
-
         verbose(2, f"connecting to JIRA ...")
 
-        match self.config["auth"]:
+        self.config = config_jira
+        jira_auth = self.config.get("auth", "<missing>")
+
+        match jira_auth:
             case "token":
                 self.jira = jira.JIRA(self.config["server"],
                                       token_auth=self.config["token"],
@@ -41,7 +42,7 @@ class Connection:
                                           self.config["password"]),
                                       options={"check_update": False})
             case _:
-                raise KeyError(f"Unknown method: jira.auth: " + self.config.get("auth", "<missing>"))
+                raise KeyError(f"unknown method: jira.auth: {jira_auth}")
 
         verbose(1, "connected to JIRA")
 
@@ -139,7 +140,7 @@ def git_run_command(gitdir: Optional[str], args: List[str],
     return ecode, output
 
 
-def read_config() -> Dict[str, Any]:
+def read_config() -> Dict[str, Any] | Error:
     config = None
 
     for config_file in ["~/.jiramail", "~/.config/jiramail/config"]:
@@ -155,7 +156,7 @@ def read_config() -> Dict[str, Any]:
             break
 
     if not config:
-        raise Exception("config file not found")
+        return Error("config file not found")
 
     verbose(1, "config has been read")
     return config

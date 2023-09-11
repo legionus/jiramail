@@ -411,8 +411,22 @@ def main(cmdargs: argparse.Namespace) -> int:
     jiramail.verbosity = cmdargs.verbose
 
     config = jiramail.read_config()
-    jserv = jiramail.Connection(config.get("jira", {}))
-    mbox = jiramail.Mailbox(cmdargs.mailbox)
+
+    if isinstance(config, jiramail.Error):
+        jiramail.verbose(0, f"{config.message}")
+        return 1
+
+    try:
+        mbox = jiramail.Mailbox(cmdargs.mailbox)
+    except Exception as e:
+        jiramail.verbose(0, f"unable to open mailbox: {e}")
+        return 1
+
+    try:
+        jserv = jiramail.Connection(config.get("jira", {}))
+    except Exception as e:
+        jiramail.verbose(0, f"unable to connect to jira: {e}")
+        return 1
 
     for username in cmdargs.assignee:
         process_query(f"assignee = '{username}'", mbox)

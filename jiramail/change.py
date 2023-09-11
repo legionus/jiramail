@@ -353,14 +353,27 @@ def main(cmdargs: argparse.Namespace) -> int:
     no_reply = cmdargs.no_reply
 
     config = jiramail.read_config()
-    jserv = jiramail.Connection(config.get("jira", {}))
+
+    if isinstance(config, jiramail.Error):
+        jiramail.verbose(0, f"{config.message}")
+        return 1
+
+    try:
+        jserv = jiramail.Connection(config.get("jira", {}))
+    except Exception as e:
+        jiramail.verbose(0, f"unable to connect to jira: {e}")
+        return 1
 
     rc = 0
 
     if cmdargs.mailbox != "-":
         replies: List[email.message.EmailMessage] = []
 
-        mbox = jiramail.Mailbox(cmdargs.mailbox)
+        try:
+            mbox = jiramail.Mailbox(cmdargs.mailbox)
+        except Exception as e:
+            jiramail.verbose(0, f"unable to open mailbox: {e}")
+            return 1
 
         for key in mbox.iterkeys():
             mail = mbox.get_message(key)
