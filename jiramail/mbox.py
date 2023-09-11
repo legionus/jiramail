@@ -131,10 +131,14 @@ def decode_markdown(message: str) -> List[str]:
     def repl_code(m: re.Match[str]) -> str:
         return "\n" + "\n".join([f"| {x}" for x in m.group(1).splitlines()]) + "\n"
 
+    def repl_noformat(m: re.Match[str]) -> str:
+        return m.group(1)
+
     message = re.sub(r'\[([^|]+)\|([^\]]+)\]', repl_link, message)
     message = re.sub(r'{{(.*?)}}', r"\1", message)
     message = re.sub(r'{quote}(.*?){quote}', repl_quote, message, flags=re.M | re.S)
     message = re.sub(r'{code:[^}]*}\s*(.*?){code}', repl_code, message, flags=re.M | re.S)
+    message = re.sub(r'{noformat}(.*?){noformat}', repl_noformat, message, flags=re.M | re.S)
 
     body.append(message)
 
