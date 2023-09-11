@@ -68,7 +68,7 @@ def command_issue_comment(issue: jira.resources.Issue, text: str) -> None | jira
 
 
 def valid_resource(kind: str, value: str, res: List[Dict[str, Any]],
-                   getter: Optional[Callable[[Dict[str, Any]], str]]=None) -> Dict[str, Any] | jiramail.Error:
+                   getter: Optional[Callable[[Dict[str, Any]], str]] = None) -> Dict[str, Any] | jiramail.Error:
     if not getter:
         getter = lambda x: x["name"]
 
@@ -78,14 +78,14 @@ def valid_resource(kind: str, value: str, res: List[Dict[str, Any]],
         if value == getter(x).lower():
             return x
 
-    names = ", ".join([ "\"{}\"".format(getter(x)) for x in res ])
+    names = ", ".join(["\"{}\"".format(getter(x)) for x in res])
     return jiramail.Error(f"invalid {kind} \"{value}\" for project. Valid: {names}")
 
 
 def append_from(issue: jira.resources.Issue, f_id: str,
                 getter: Callable[[jira.resources.Resource], Any]) -> List[Any]:
     try:
-        return [ getter(o) for o in issue.get_field(f_id) ]
+        return [getter(o) for o in issue.get_field(f_id)]
     except AttributeError:
         return []
 
@@ -101,9 +101,9 @@ def command_issue_change(issue: jira.resources.Issue,
         fields_by_name[v["name"].lower()] = i
 
     for i in list(range(0, len(words), 3)):
-        name   = words[i+0]
+        name = words[i]
         action = words[i+1].lower()
-        value  = words[i+2]
+        value = words[i+2]
 
         match action:
             case "add" | "+=":
@@ -151,12 +151,12 @@ def command_issue_change(issue: jira.resources.Issue,
 
                     case "option":
                         if action == "add":
-                            fields[f_id] += append_from(issue, f_id, lambda x: {"value": x.value })
+                            fields[f_id] += append_from(issue, f_id, lambda x: {"value": x.value})
                         fields[f_id].append({"value": value})
 
                     case _:
                         if action == "add":
-                            fields[f_id] += append_from(issue, f_id, lambda x: {"name": x.name })
+                            fields[f_id] += append_from(issue, f_id, lambda x: {"name": x.name})
                         fields[f_id].append({"name": value})
 
             case "option":
@@ -218,7 +218,7 @@ def command_issue(args: List[str]) -> None | jiramail.Error:
 
 
 def get_words(s: str) -> List[str]:
-    return [ x for x in re.split(r'("[^"]+"|\'[^\']+\'|\S+)', s) if len(x.strip()) > 0 ]
+    return [x for x in re.split(r'("[^"]+"|\'[^\']+\'|\S+)', s) if len(x.strip()) > 0]
 
 
 def process_commands(mail: Optional[mailbox.Message], fd: TextIO,
@@ -374,8 +374,8 @@ def main(cmdargs: argparse.Namespace) -> int:
                     continue
 
                 fd = io.StringIO(
-                        initial_value = part.get_payload(),
-                        newline = '\n')
+                        initial_value=part.get_payload(),
+                        newline='\n')
 
                 if not process_commands(mail, fd, replies):
                     rc = 1

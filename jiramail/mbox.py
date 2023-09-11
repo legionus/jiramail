@@ -34,7 +34,7 @@ class Subject:
         self.action = ""
 
     def __str__(self) -> str:
-        subj = [ f"[{self.key}]" ]
+        subj = [f"[{self.key}]"]
         if self.action:
             subj.append(self.action)
         if self.text:
@@ -111,7 +111,7 @@ def get_issue_info(issue, fields):
     for field in fields:
         value = get_issue_field(issue, field['name'])
         if value:
-            ret.append( (field['label'], field['getter'](value)) )
+            ret.append((field['label'], field['getter'](value)))
     return ret
 
 
@@ -124,21 +124,21 @@ def decode_markdown(message):
         return f"\"{m.group(1)}\"[{len(links)}]"
 
     def repl_quote(m):
-        return "\n" + "\n".join([ f"> {x}" for x in m.group(1).splitlines() ]) + "\n"
+        return "\n" + "\n".join([f"> {x}" for x in m.group(1).splitlines()]) + "\n"
 
     def repl_code(m):
-        return "\n" + "\n".join([ f"| {x}" for x in m.group(1).splitlines() ]) + "\n"
+        return "\n" + "\n".join([f"| {x}" for x in m.group(1).splitlines()]) + "\n"
 
     message = re.sub(r'\[([^|]+)\|([^\]]+)\]', repl_link, message)
     message = re.sub(r'{{(.*?)}}', r"\1", message)
-    message = re.sub(r'{quote}(.*?){quote}', repl_quote, message, flags=re.M|re.S)
-    message = re.sub(r'{code:[^}]*}\s*(.*?){code}', repl_code, message, flags=re.M|re.S)
+    message = re.sub(r'{quote}(.*?){quote}', repl_quote, message, flags=re.M | re.S)
+    message = re.sub(r'{code:[^}]*}\s*(.*?){code}', repl_code, message, flags=re.M | re.S)
 
     body.append(message)
 
     if links:
         body.append("")
-        for i,link in enumerate(links):
+        for i, link in enumerate(links):
             body.append(f"[{i+1}] {link}")
 
     return body
@@ -170,16 +170,16 @@ def issue_email(issue: jira.resources.Issue, date: str, author: User,
     body = []
 
     info = get_issue_info(issue, [
-        { "label": "Type"    , "name": "issuetype", "getter": lambda a: a.name },
-        { "label": "Severity", "name": "severity" , "getter": lambda a: a.value },
-        { "label": "Priority", "name": "priority" , "getter": lambda a: a.name },
-        { "label": "Labels"  , "name": "labels"   , "getter": lambda a: ", ".join(map(lambda b: f'"{b}"', a)) },
-        { "label": "Keywords", "name": "keywords" , "getter": lambda a: ", ".join(map(lambda b: f'"{b}"', a)) },
+        {"label": "Type",     "name": "issuetype", "getter": lambda a: a.name},
+        {"label": "Severity", "name": "severity",  "getter": lambda a: a.value},
+        {"label": "Priority", "name": "priority",  "getter": lambda a: a.name},
+        {"label": "Labels",   "name": "labels",    "getter": lambda a: ", ".join(map(lambda b: f'"{b}"', a))},
+        {"label": "Keywords", "name": "keywords",  "getter": lambda a: ", ".join(map(lambda b: f'"{b}"', a))},
         ])
     if info:
-        name_width  = max([ len(el[0]) for el in info ]) + 1
+        name_width = max([len(el[0]) for el in info]) + 1
         for el in info:
-            body.append("{:>{name_width}}: {}".format(*el, name_width = name_width))
+            body.append("{:>{name_width}}: {}".format(*el, name_width=name_width))
 
         body.append("---")
         body.append("")
@@ -213,7 +213,7 @@ def changes_email(issue_id: str, change_id: str, date: str, author: User,
     mail.add_header("References", f"{parent_id} {msg_id}")
 
     name_len = 0
-    old_len  = 0
+    old_len = 0
 
     for item in changes:
         if name_len < len(item.field):
@@ -224,16 +224,16 @@ def changes_email(issue_id: str, change_id: str, date: str, author: User,
             status = f" [{item.toString}]"
 
     name_len += 1
-    old_len  += 1
+    old_len += 1
 
     body = []
     for item in changes:
         body.append("{name:>{name_len}}: {old:>{old_len}} -> {new}".format(
-            name = item.field,
-            old = item.fromString or '""',
-            new = item.toString   or '""',
-            name_len = name_len,
-            old_len = old_len))
+            name=item.field,
+            old=item.fromString or '""',
+            new=item.toString or '""',
+            name_len=name_len,
+            old_len=old_len))
 
     body.append("")
     body.append("-- ")
@@ -272,8 +272,8 @@ def comment_email(issue: jira.resources.Issue, comment: jira.resources.Comment,
     body.append("")
     body.append("-- ")
     body.append("{url}?focusedId={commentid}#comment-{commentid}".format(
-        url = issue.permalink(),
-        commentid = comment.id))
+        url=issue.permalink(),
+        commentid=comment.id))
     body.append("")
 
     mail.set_content("\n".join(body))
@@ -283,7 +283,7 @@ def comment_email(issue: jira.resources.Issue, comment: jira.resources.Comment,
 
 def add_issue(issue: jira.resources.Issue, mbox: jiramail.Mailbox):
     jiramail.verbose(2, f"processing issue {issue.key} ...")
-    #pprint.pprint(issue.raw)
+    # pprint.pprint(issue.raw)
 
     date = str(get_issue_field(issue, "created"))
     summary = str(get_issue_field(issue, "summary"))
@@ -296,8 +296,8 @@ def add_issue(issue: jira.resources.Issue, mbox: jiramail.Mailbox):
 
     for el in sorted(
             chain(issue.changelog.histories, issue.fields.comment.comments),
-            key = lambda x: datetime.fromisoformat(x.created),
-            reverse = False):
+            key=lambda x: datetime.fromisoformat(x.created),
+            reverse=False):
 
         if isinstance(el, jira.resources.PropertyHolder):
             if not has_attrs(el, ["author", "created", "items"]):
@@ -314,7 +314,7 @@ def add_issue(issue: jira.resources.Issue, mbox: jiramail.Mailbox):
 
             if changes and history and (
                     prop.author.emailAddress != history.author.emailAddress or
-                    (t2 - t1) >= timedelta(hours = 1)):
+                    (t2 - t1) >= timedelta(hours=1)):
                 mail = changes_email(issue.id, history.id, history.created,
                                      User(history.author), subject, changes)
                 mbox.append(mail)
@@ -386,9 +386,9 @@ def process_query(query: str, mbox: jiramail.Mailbox):
 
     while True:
         res = jserv.jira.search_issues(query,
-                                       expand = "changelog",
-                                       startAt = pos,
-                                       maxResults = chunk)
+                                       expand="changelog",
+                                       startAt=pos,
+                                       maxResults=chunk)
         if not res:
             break
 
@@ -419,7 +419,7 @@ def main(cmdargs: argparse.Namespace) -> int:
         process_query(query, mbox)
 
     for key in cmdargs.issues:
-        issue = jserv.jira.issue(key, expand = "changelog")
+        issue = jserv.jira.issue(key, expand="changelog")
         add_issue(issue, mbox)
 
     mbox.close()

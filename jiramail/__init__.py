@@ -31,13 +31,13 @@ class Connection:
             case "token":
                 self.jira = jira.JIRA(self.config["server"],
                                       token_auth=self.config["token"],
-                                      options = {"check_update": False})
+                                      options={"check_update": False})
             case "basic":
                 self.jira = jira.JIRA(self.config["server"],
                                       basic_auth=(
                                           self.config["user"],
                                           self.config["password"]),
-                                      options = {"check_update": False})
+                                      options={"check_update": False})
             case _:
                 raise KeyError(f"Unknown method: jira.auth: " + self.config.get("auth", "<missing>"))
 
@@ -140,7 +140,7 @@ def git_run_command(gitdir: Optional[str], args: List[str],
 def read_config():
     config = None
 
-    for config_file in [ "~/.jiramail", "~/.config/jiramail/config" ]:
+    for config_file in ["~/.jiramail", "~/.config/jiramail/config"]:
         config_file = os.path.expanduser(config_file)
 
         if not os.path.exists(config_file):
@@ -157,4 +157,3 @@ def read_config():
 
     verbose(1, "config has been read")
     return config
-

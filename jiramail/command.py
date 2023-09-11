@@ -33,14 +33,14 @@ def add_common_arguments(parser: argparse.ArgumentParser):
 def setup_parser() -> argparse.ArgumentParser:
     # noinspection PyTypeChecker
     parser = argparse.ArgumentParser(
-            prog = "jiramail",
-            formatter_class = argparse.RawDescriptionHelpFormatter,
-            description = """
+            prog="jiramail",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            description="""
 Saves JIRA issues in mailbox format. Issues are saved along with all comments.
 Changes made to the issue are also saved in the form of emails.
 """,
-epilog = "Report bugs to authors.",
-allow_abbrev = True)
+            epilog="Report bugs to authors.",
+            allow_abbrev=True)
 
     parser.add_argument("-V", "--version",
                         action='version',
@@ -51,7 +51,7 @@ allow_abbrev = True)
     # jiramail mbox
     sp0 = subparsers.add_parser("mbox",
                                 help="download one or more jira issue as an mbox file",
-                                epilog = "Report bugs to authors.")
+                                epilog="Report bugs to authors.")
     sp0.set_defaults(func=cmd_mbox)
     add_common_arguments(sp0)
 
@@ -65,12 +65,12 @@ allow_abbrev = True)
                      dest="issues", action="append", default=[], metavar="ISSUE-123",
                      help="specify the issues to export")
     sp0.add_argument("mailbox",
-                     help = "path to mbox where emails should be added")
+                     help="path to mbox where emails should be added")
 
     # jiramail change
     sp1 = subparsers.add_parser("change",
                                 help="reads mailbox and makes changes in JIRA.",
-                                epilog = "Report bugs to authors.")
+                                epilog="Report bugs to authors.")
     sp1.set_defaults(func=cmd_change)
     add_common_arguments(sp1)
 
