@@ -54,6 +54,9 @@ class Connection:
     def field_by_name(self, name: str, default: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         if not self._fields_by_name:
             for v in self.jira.fields():
+                if "clauseNames" in v:
+                    for n in v["clauseNames"]:
+                        self._fields_by_name[n.lower()] = v
                 self._fields_by_name[v["name"].lower()] = v
 
         return self._fields_by_name.get(name, default)

@@ -108,12 +108,13 @@ def get_date(data: str) -> str:
 
 
 def get_issue_info(issue: jira.resources.Issue,
-                   fields: List[Dict[str, Any]]) -> List[Tuple[str, str]]:
+                   items: List[Dict[str, Any]]) -> List[Tuple[str, str]]:
     ret = []
-    for field in fields:
-        value = get_issue_field(issue, field['name'])
+    for item in items:
+        field = jserv.field_by_name(item['name'])
+        value = get_issue_field(issue, item['name'])
         if value:
-            ret.append((field['label'], field['getter'](value)))
+            ret.append((field['name'], item['getter'](value)))
     return ret
 
 
@@ -176,11 +177,11 @@ def issue_email(issue: jira.resources.Issue, date: str, author: User,
     body = []
 
     info = get_issue_info(issue, [
-        {"label": "Type",     "name": "issuetype", "getter": lambda a: a.name},
-        {"label": "Severity", "name": "severity",  "getter": lambda a: a.value},
-        {"label": "Priority", "name": "priority",  "getter": lambda a: a.name},
-        {"label": "Labels",   "name": "labels",    "getter": lambda a: ", ".join(map(lambda b: f'"{b}"', a))},
-        {"label": "Keywords", "name": "keywords",  "getter": lambda a: ", ".join(map(lambda b: f'"{b}"', a))},
+        {"name": "issuetype", "getter": lambda a: a.name},
+        {"name": "severity",  "getter": lambda a: a.value},
+        {"name": "priority",  "getter": lambda a: a.name},
+        {"name": "labels",    "getter": lambda a: ", ".join(map(lambda b: f'"{b}"', a))},
+        {"name": "keywords",  "getter": lambda a: ", ".join(map(lambda b: f'"{b}"', a))},
         ])
     if info:
         name_width = max([len(el[0]) for el in info]) + 1
