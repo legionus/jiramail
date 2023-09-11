@@ -357,7 +357,8 @@ def add_issue(issue: jira.resources.Issue, mbox: jiramail.Mailbox):
                 # Something strange with this object
                 continue
 
-            mail = comment_email(issue, el, el.created, el.author, subject, el.body)
+            mail = comment_email(issue, el, el.created, User(el.author),
+                                 subject, el.body)
             mbox.append(mail)
             continue
 
@@ -371,7 +372,8 @@ def add_issue(issue: jira.resources.Issue, mbox: jiramail.Mailbox):
     history = None
     changes = []
 
-    mail = issue_email(issue, date, User(issue.fields.reporter), subject, description or "")
+    mail = issue_email(issue, date, User(issue.fields.reporter), subject,
+                       description or "")
     mail.add_header("To", User(issue.fields.assignee).to_string())
     mbox.append(mail)
 
