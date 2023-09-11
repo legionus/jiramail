@@ -37,7 +37,7 @@ setup(
         install_requires=[
             "jira>=3.5.2",
             ],
-        python_requires=">=3.10",
+        python_requires=">=3.11",
         entry_points={
             "console_scripts": [
                 "jiramail=jiramail.command:cmd"

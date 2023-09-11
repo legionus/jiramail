@@ -195,7 +195,7 @@ def issue_email(issue: jira.resources.Issue, date: str, author: User,
 
     body.append("")
     body.append("-- ")
-    body.append(issue.permalink())
+    body.append(issue.permalink()) # type: ignore
     body.append("")
 
     mail.set_content("\n".join(body))
@@ -279,7 +279,7 @@ def comment_email(issue: jira.resources.Issue, comment: jira.resources.Comment,
     body.append("")
     body.append("-- ")
     body.append("{url}?focusedId={commentid}#comment-{commentid}".format(
-        url=issue.permalink(),
+        url=issue.permalink(), # type: ignore
         commentid=comment.id))
     body.append("")
 

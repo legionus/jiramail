@@ -1,0 +1,35 @@
+
+name: "CI"
+on:
+  push:
+    branches:
+      - "master"
+      - "for-master"
+      - "patchset/**"
+    paths-ignore:
+      - "**.md"
+jobs:
+  verify:
+    name: "Verify"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout Repository"
+        uses: actions/checkout@v3
+
+      - name: "Switch to using Python 3.11 by default"
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: "Install dependencies"
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install mypy
+          pip install pylint
+
+      - name: "Check mypy"
+        run: mypy --strict jiramail/*.py
+
+      - name: "Check pylint"
+        run: pylint --disable=R --disable=W0603,W0621,W0718 --disable=C0103,C0114,C0115,C0116,C0301,C0415,C3001 jiramail/*.py
