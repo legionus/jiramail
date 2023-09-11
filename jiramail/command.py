@@ -5,10 +5,8 @@
 __author__ = 'Alexey Gladkov <gladkov.alexey@gmail.com>'
 
 import argparse
-import logging
-import sys
-
 import jiramail
+import sys
 
 
 def cmd_mbox(cmdargs: argparse.Namespace) -> int:

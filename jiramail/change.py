@@ -12,12 +12,9 @@ import jira
 import jira.resources
 import jiramail
 import mailbox
-import os.path
 import pprint
 import re
 import sys
-import time
-import tomllib
 
 from datetime import datetime
 from typing import Optional, Dict, List, Callable, Any, TextIO
