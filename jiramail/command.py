@@ -21,7 +21,7 @@ def cmd_change(cmdargs: argparse.Namespace) -> int:
     return jiramail.change.main(cmdargs)
 
 
-def add_common_arguments(parser: argparse.ArgumentParser):
+def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("-v", "--verbose",
                         dest="verbose", action='count', default=0,
                         help="print a message for each action")
@@ -94,7 +94,9 @@ def cmd() -> int:
         parser.print_help()
         return 1
 
-    return cmdargs.func(cmdargs)
+    ret: int = cmdargs.func(cmdargs)
+
+    return ret
 
 
 if __name__ == '__main__':

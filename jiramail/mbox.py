@@ -20,14 +20,15 @@ import tomllib
 
 from datetime import datetime
 from datetime import timedelta
-from typing import Optional, Dict, List, Union, Any
+from typing import Optional, Dict, List, Tuple, Union, Any
+from collections.abc import Iterator, Iterable
 
 
 jserv: jiramail.Connection
 
 
 class Subject:
-    def __init__(self, key, text):
+    def __init__(self, key: str, text: str) -> None:
         self.version = 1
         self.key = key
         self.text = text
@@ -58,7 +59,7 @@ class User:
         return str(self)
 
     def from_resource(self, user: Union[jira.resources.UnknownResource,
-                                        jira.resources.User]):
+                                        jira.resources.User]) -> None:
         if hasattr(user, "displayName"):
             self.name = user.displayName
         if hasattr(user, "emailAddress"):
@@ -74,7 +75,7 @@ class Property:
         self.items = getattr(prop, "items", [])
 
 
-def chain(*iterables):
+def chain(*iterables: Iterable[Any]) -> Iterator[Any]:
     for it in iterables:
         for element in it:
             yield element
@@ -87,7 +88,7 @@ def has_attrs(o: object, attrs: List[str]) -> bool:
     return True
 
 
-def get_issue_field(issue, name) -> Optional[Any]:
+def get_issue_field(issue: jira.resources.Issue, name: str) -> Optional[Any]:
     try:
         return issue.get_field(field_name=name)
     except AttributeError:
@@ -101,12 +102,13 @@ def get_issue_field(issue, name) -> Optional[Any]:
     return None
 
 
-def get_date(data):
+def get_date(data: str) -> str:
     dt = datetime.fromisoformat(data)
     return email.utils.format_datetime(dt)
 
 
-def get_issue_info(issue, fields):
+def get_issue_info(issue: jira.resources.Issue,
+                   fields: List[Dict[str, Any]]) -> List[Tuple[str, str]]:
     ret = []
     for field in fields:
         value = get_issue_field(issue, field['name'])
@@ -115,18 +117,18 @@ def get_issue_info(issue, fields):
     return ret
 
 
-def decode_markdown(message):
+def decode_markdown(message: str) -> List[str]:
     body = []
     links = []
 
-    def repl_link(m):
+    def repl_link(m: re.Match[str]) -> str:
         links.append(m.group(2))
         return f"\"{m.group(1)}\"[{len(links)}]"
 
-    def repl_quote(m):
+    def repl_quote(m: re.Match[str]) -> str:
         return "\n" + "\n".join([f"> {x}" for x in m.group(1).splitlines()]) + "\n"
 
-    def repl_code(m):
+    def repl_code(m: re.Match[str]) -> str:
         return "\n" + "\n".join([f"| {x}" for x in m.group(1).splitlines()]) + "\n"
 
     message = re.sub(r'\[([^|]+)\|([^\]]+)\]', repl_link, message)
@@ -281,7 +283,7 @@ def comment_email(issue: jira.resources.Issue, comment: jira.resources.Comment,
     return mail
 
 
-def add_issue(issue: jira.resources.Issue, mbox: jiramail.Mailbox):
+def add_issue(issue: jira.resources.Issue, mbox: jiramail.Mailbox) -> None:
     jiramail.verbose(2, f"processing issue {issue.key} ...")
     # pprint.pprint(issue.raw)
 
@@ -378,7 +380,7 @@ def add_issue(issue: jira.resources.Issue, mbox: jiramail.Mailbox):
     mbox.append(mail)
 
 
-def process_query(query: str, mbox: jiramail.Mailbox):
+def process_query(query: str, mbox: jiramail.Mailbox) -> None:
     pos = 0
     chunk = 50
 
@@ -389,7 +391,7 @@ def process_query(query: str, mbox: jiramail.Mailbox):
                                        expand="changelog",
                                        startAt=pos,
                                        maxResults=chunk)
-        if not res:
+        if not res or not isinstance(res, jira.client.ResultList):
             break
 
         if pos == 0:

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2023  Alexey Gladkov <gladkov.alexey@gmail.com>
 
+import email
 import jira
 import mailbox
 import os
@@ -10,19 +11,20 @@ import sys
 import time
 import tomllib
 
-from typing import Optional, Tuple, Set, List, BinaryIO, Union, Sequence
+from typing import Optional, Dict, Tuple, List, Union, Any
+from collections.abc import Iterator
 
 
 __VERSION__ = '1'
 
 
 class Error:
-    def __init__(self, message):
+    def __init__(self, message: str):
         self.message = message
 
 
 class Connection:
-    def __init__(self, config_jira):
+    def __init__(self, config_jira: Dict[str, Any]):
         self.config = config_jira
 
         verbose(2, f"connecting to JIRA ...")
@@ -43,9 +45,9 @@ class Connection:
 
         verbose(1, "connected to JIRA")
 
-        self._fields_by_name = {}
+        self._fields_by_name: Dict[str, Any] = {}
 
-    def field_by_name(self, name: str, default: Optional[dict] = None):
+    def field_by_name(self, name: str, default: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         if not self._fields_by_name:
             for v in self.jira.fields():
                 self._fields_by_name[v["name"].lower()] = v
@@ -54,7 +56,7 @@ class Connection:
 
 
 class Mailbox:
-    def __init__(self, path):
+    def __init__(self, path: str):
         verbose(2, f"openning the mailbox {path} ...")
 
         self.mbox = mailbox.mbox(path)
@@ -68,30 +70,30 @@ class Mailbox:
 
         verbose(1, "mailbox is ready")
 
-    def get_message(self, key):
+    def get_message(self, key: str) -> mailbox.mboxMessage:
         return self.mbox.get_message(key)
 
-    def update_message(self, key, mail):
+    def update_message(self, key: str, mail: email.message.Message) -> None:
         self.mbox.update([(key, mail)])
 
-    def append(self, mail):
+    def append(self, mail: email.message.Message) -> None:
         msg_id = mail.get("Message-Id")
 
         if msg_id not in self.msgid:
             self.mbox.add(mail)
             self.msgid[msg_id] = True
 
-    def iterkeys(self):
+    def iterkeys(self) -> Iterator[Any]:
         return self.mbox.iterkeys()
 
-    def close(self):
+    def close(self) -> None:
         self.mbox.close()
 
 
 verbosity: int = 0
 
 
-def verbose(level: int, text: str):
+def verbose(level: int, text: str) -> None:
     if verbosity >= level:
         print(time.strftime("[%H:%M:%S]"), f"level={level}", text,
               file=sys.stderr, flush=True)
@@ -137,7 +139,7 @@ def git_run_command(gitdir: Optional[str], args: List[str],
     return ecode, output
 
 
-def read_config():
+def read_config() -> Dict[str, Any]:
     config = None
 
     for config_file in ["~/.jiramail", "~/.config/jiramail/config"]:

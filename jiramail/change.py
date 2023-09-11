@@ -383,8 +383,8 @@ def main(cmdargs: argparse.Namespace) -> int:
                 mail.set_flags("ROA")
                 mbox.update_message(key, mail)
 
-        for mail in replies:
-            mbox.append(mail)
+        for reply in replies:
+            mbox.append(reply)
 
         mbox.close()
 
