@@ -17,6 +17,9 @@ from collections.abc import Iterator
 
 __VERSION__ = '1'
 
+EX_SUCCESS = 0 # Successful exit status.
+EX_FAILURE = 1 # Failing exit status.
+
 
 class Error:
     def __init__(self, message: str):

@@ -356,15 +356,15 @@ def main(cmdargs: argparse.Namespace) -> int:
 
     if isinstance(config, jiramail.Error):
         jiramail.verbose(0, f"{config.message}")
-        return 1
+        return jiramail.EX_FAILURE
 
     try:
         jserv = jiramail.Connection(config.get("jira", {}))
     except Exception as e:
         jiramail.verbose(0, f"unable to connect to jira: {e}")
-        return 1
+        return jiramail.EX_FAILURE
 
-    rc = 0
+    rc = jiramail.EX_SUCCESS
 
     if cmdargs.mailbox != "-":
         replies: List[email.message.EmailMessage] = []
@@ -373,7 +373,7 @@ def main(cmdargs: argparse.Namespace) -> int:
             mbox = jiramail.Mailbox(cmdargs.mailbox)
         except Exception as e:
             jiramail.verbose(0, f"unable to open mailbox: {e}")
-            return 1
+            return jiramail.EX_FAILURE
 
         for key in mbox.iterkeys():
             mail = mbox.get_message(key)
@@ -391,7 +391,7 @@ def main(cmdargs: argparse.Namespace) -> int:
                         newline='\n')
 
                 if not process_commands(mail, fd, replies):
-                    rc = 1
+                    rc = jiramail.EX_FAILURE
 
                 mail.set_flags("ROA")
                 mbox.update_message(key, mail)
@@ -402,6 +402,6 @@ def main(cmdargs: argparse.Namespace) -> int:
         mbox.close()
 
     elif not process_commands(None, sys.stdin, []):
-        rc = 1
+        rc = jiramail.EX_FAILURE
 
     return rc

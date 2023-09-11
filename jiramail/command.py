@@ -92,7 +92,7 @@ def cmd() -> int:
 
     if 'func' not in cmdargs:
         parser.print_help()
-        return 1
+        return jiramail.EX_FAILURE
 
     ret: int = cmdargs.func(cmdargs)
 
