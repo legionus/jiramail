@@ -8,16 +8,19 @@ import argparse
 import email
 import email.utils
 import io
-import jira
-import jira.resources
-import jiramail
 import mailbox
 import pprint
 import re
 import sys
 
 from datetime import datetime
+
 from typing import Optional, Dict, List, Callable, Any, TextIO
+
+import jira
+import jira.resources
+
+import jiramail
 
 
 jserv: jiramail.Connection
@@ -75,7 +78,7 @@ def valid_resource(kind: str, value: str, res: List[Dict[str, Any]],
         if value == getter(x).lower():
             return x
 
-    names = ", ".join(["\"{}\"".format(getter(x)) for x in res])
+    names = ", ".join([f"\"{getter(x)}\"" for x in res])
     return jiramail.Error(f"invalid {kind} \"{value}\" for project. Valid: {names}")
 
 
@@ -188,7 +191,7 @@ def command_issue_change(issue: jira.resources.Issue,
 
 def command_issue(args: List[str]) -> None | jiramail.Error:
     if len(args) < 2:
-        return jiramail.Error("issue command is too short: {}".format(" ".join(args)))
+        return jiramail.Error(f"issue command is too short: {args}")
 
     key = args.pop(0)
     action = args.pop(0)
@@ -288,7 +291,7 @@ def process_commands(mail: Optional[mailbox.Message], fd: TextIO,
 
         if words_valid:
             if len(words) < 1:
-                jiramail.verbose(0, "command is too short: {}".format(" ".join(words)))
+                jiramail.verbose(0, f"command is too short: {words}")
                 words_valid = False
 
         if words_valid:
@@ -301,7 +304,7 @@ def process_commands(mail: Optional[mailbox.Message], fd: TextIO,
                     out.append(f"ERROR: {r.message}")
                     ret = False
                 else:
-                    out.append(f"DONE")
+                    out.append("DONE")
             else:
                 out.append(f"ERROR: unknown keyword \"{words[0]}\"")
                 ret = False

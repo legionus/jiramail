@@ -7,15 +7,19 @@ __author__ = 'Alexey Gladkov <gladkov.alexey@gmail.com>'
 import argparse
 import email
 import email.utils
-import jira
-import jira.resources
-import jiramail
 import re
 
 from datetime import datetime
 from datetime import timedelta
+
 from typing import Optional, Dict, List, Tuple, Union, Any
+
 from collections.abc import Iterator, Iterable
+
+import jira
+import jira.resources
+
+import jiramail
 
 
 jserv: jiramail.Connection
@@ -179,8 +183,8 @@ def issue_email(issue: jira.resources.Issue, date: str, author: User,
         ])
     if info:
         name_width = max([len(el[0]) for el in info]) + 1
-        for el in info:
-            body.append("{:>{name_width}}: {}".format(*el, name_width=name_width))
+        for name, value in info:
+            body.append(f"{name:>{name_width}}: {value}")
 
         body.append("---")
         body.append("")
@@ -229,12 +233,9 @@ def changes_email(issue_id: str, change_id: str, date: str, author: User,
 
     body = []
     for item in changes:
-        body.append("{name:>{name_len}}: {old:>{old_len}} -> {new}".format(
-            name=item.field,
-            old=item.fromString or '""',
-            new=item.toString or '""',
-            name_len=name_len,
-            old_len=old_len))
+        old = item.fromString or '""'
+        new = item.toString or '""'
+        body.append(f"{item.field:>{name_len}}: {old:>{old_len}} -> {new}")
 
     body.append("")
     body.append("-- ")
@@ -405,7 +406,7 @@ def process_query(query: str, mbox: jiramail.Mailbox) -> None:
 
 
 def main(cmdargs: argparse.Namespace) -> int:
-    global jserv, verbosity
+    global jserv
 
     jiramail.verbosity = cmdargs.verbose
 

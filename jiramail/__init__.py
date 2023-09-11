@@ -2,7 +2,6 @@
 # Copyright (C) 2023  Alexey Gladkov <gladkov.alexey@gmail.com>
 
 import email
-import jira
 import mailbox
 import os
 import os.path
@@ -13,6 +12,8 @@ import tomllib
 
 from typing import Optional, Dict, Tuple, List, Union, Any
 from collections.abc import Iterator
+
+import jira
 
 
 __VERSION__ = '1'
@@ -28,7 +29,7 @@ class Error:
 
 class Connection:
     def __init__(self, config_jira: Dict[str, Any]):
-        verbose(2, f"connecting to JIRA ...")
+        verbose(2, "connecting to JIRA ...")
 
         self.config = config_jira
         jira_auth = self.config.get("auth", "<missing>")
