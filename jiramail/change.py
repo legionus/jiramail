@@ -8,7 +8,6 @@ import argparse
 import email
 import email.utils
 import io
-import mailbox
 import pprint
 import re
 import sys
@@ -221,7 +220,7 @@ def get_words(s: str) -> List[str]:
     return [x for x in re.split(r'("[^"]+"|\'[^\']+\'|\S+)', s) if len(x.strip()) > 0]
 
 
-def process_commands(mail: Optional[mailbox.Message], fd: TextIO,
+def process_commands(mail: Optional[email.message.Message], fd: TextIO,
                      replies: List[email.message.EmailMessage]) -> bool:
     ret = True
     out = []
@@ -345,7 +344,7 @@ def process_commands(mail: Optional[mailbox.Message], fd: TextIO,
     return ret
 
 
-def process_mail(mail: mailbox.Message,
+def process_mail(mail: email.message.Message,
                  replies: List[email.message.EmailMessage]) -> bool:
     rc = True
 
@@ -405,6 +404,16 @@ def main(cmdargs: argparse.Namespace) -> int:
 
             mail.set_flags("ROA")
             mbox.update_message(key, mail)
+
+        if cmdargs.stdin:
+            stdin_mail = email.message_from_file(sys.stdin)
+            stdin_mail["Status"] = "RO"
+            stdin_mail["X-Status"] = "A"
+
+            mbox.append(stdin_mail)
+
+            if not process_mail(stdin_mail, replies):
+                rc = jiramail.EX_FAILURE
 
         for reply in replies:
             mbox.append(reply)

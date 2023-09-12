@@ -79,6 +79,9 @@ Changes made to the issue are also saved in the form of emails.
     sp1.add_argument("-r", "--no-reply",
                      dest="no_reply", action="store_true",
                      help="do not add a reply message with the status of command execution")
+    sp1.add_argument("-s", "--stdin",
+                     dest="stdin", action="store_true",
+                     help="accept a mail stream on standard input, process commands from it and write it to mailbox")
     sp1.add_argument("mailbox",
                      help="path to mbox with commands")
 
