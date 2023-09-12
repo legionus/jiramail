@@ -130,12 +130,17 @@ def command_issue_change(issue: jira.resources.Issue,
         jiramail.verbose(3, f"FIELD id=({f_id}) name=({meta['name']})")
 
         if "allowedValues" in meta:
+            def get_value(x: Dict[str, Any]) -> str:
+                return str(x["value"]) if "value" in x else str(x["name"])
+
             obj = valid_resource(meta["name"], value,
                                  meta["allowedValues"],
-                                 lambda x: x["value"] if "value" in x else x["name"])
+                                 get_value)
 
             if isinstance(obj, jiramail.Error):
                 return obj
+
+            value = get_value(obj)
 
         match meta["schema"]["type"]:
             case "array":
