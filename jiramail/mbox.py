@@ -159,6 +159,8 @@ def issue_email(issue: jira.resources.Issue, date: str, author: User,
     mail.add_header("From", str(author))
     mail.add_header("Message-Id", msg_id)
     mail.add_header("Reply-To", "change@jira")
+    mail.add_header("X-Jiramail-Issue-Id", f"{issue.id}")
+    mail.add_header("X-Jiramail-Issue-Key", f"{issue.key}")
 
     if subject.version > 1:
         parent_id = f"<v1-{issue.id}@issue.jira>"
@@ -201,12 +203,12 @@ def issue_email(issue: jira.resources.Issue, date: str, author: User,
     return mail
 
 
-def changes_email(issue_id: str, change_id: str, date: str, author: User,
+def changes_email(issue: jira.resources.Issue, change_id: str, date: str, author: User,
                   subject: Subject, changes: List[Any]) -> email.message.EmailMessage:
     mail = email.message.EmailMessage()
 
-    msg_id = f"<{issue_id}-{change_id}@changes.issue.jira>"
-    parent_id = f"<v1-{issue_id}@issue.jira>"
+    msg_id = f"<{issue.id}-{change_id}@changes.issue.jira>"
+    parent_id = f"<v1-{issue.id}@issue.jira>"
     subject.action = "U:"
     status = ""
 
@@ -216,6 +218,8 @@ def changes_email(issue_id: str, change_id: str, date: str, author: User,
     mail.add_header("Reply-To", "change@jira")
     mail.add_header("In-Reply-To", parent_id)
     mail.add_header("References", f"{parent_id} {msg_id}")
+    mail.add_header("X-Jiramail-Issue-Id", f"{issue.id}")
+    mail.add_header("X-Jiramail-Issue-Key", f"{issue.key}")
 
     name_len = 0
     old_len = 0
@@ -262,6 +266,8 @@ def comment_email(issue: jira.resources.Issue, comment: jira.resources.Comment,
     mail.add_header("Reply-To", "change@jira")
     mail.add_header("In-Reply-To", parent_id)
     mail.add_header("References", f"{parent_id} {msg_id}")
+    mail.add_header("X-Jiramail-Issue-Id", f"{issue.id}")
+    mail.add_header("X-Jiramail-Issue-Key", f"{issue.key}")
 
     body = []
 
@@ -317,7 +323,7 @@ def add_issue(issue: jira.resources.Issue, mbox: jiramail.Mailbox) -> None:
             if changes and history and (
                     prop.author.emailAddress != history.author.emailAddress or
                     (t2 - t1) >= timedelta(hours=1)):
-                mail = changes_email(issue.id, history.id, history.created,
+                mail = changes_email(issue, history.id, history.created,
                                      User(history.author), subject, changes)
                 mbox.append(mail)
                 changes = []
@@ -328,7 +334,7 @@ def add_issue(issue: jira.resources.Issue, mbox: jiramail.Mailbox) -> None:
 
                 if item.fieldtype == "jira" and item.field == "description":
                     if changes:
-                        mail = changes_email(issue.id, prop.id + "-0",
+                        mail = changes_email(issue, prop.id + "-0",
                                              prop.created, User(prop.author),
                                              subject, changes)
                         mbox.append(mail)
@@ -367,7 +373,7 @@ def add_issue(issue: jira.resources.Issue, mbox: jiramail.Mailbox) -> None:
         jiramail.verbose(0, f"unknown history item: {repr(el)}")
 
     if history and changes:
-        mail = changes_email(issue.id, history.id, history.created,
+        mail = changes_email(issue, history.id, history.created,
                              User(history.author), subject, changes)
         mbox.append(mail)
 

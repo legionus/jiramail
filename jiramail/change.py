@@ -193,11 +193,21 @@ def command_issue_change(issue: jira.resources.Issue,
     return None
 
 
-def command_issue(args: List[str]) -> None | jiramail.Error:
-    if len(args) < 2:
+def command_issue(mail: Optional[email.message.Message],
+                  args: List[str]) -> None | jiramail.Error:
+    if len(args) < 1:
         return jiramail.Error(f"issue command is too short: {args}")
 
-    key = args.pop(0)
+    if args[0] in ("assign", "comment", "change"):
+        if not mail or "X-Jiramail-Issue-Key" not in mail:
+            return jiramail.Error("header with issue number not found. Maybe it's because you don't reply to the generated email.")
+        key = mail["X-Jiramail-Issue-Key"]
+    else:
+        key = args.pop(0)
+
+    if len(args) < 1:
+        return jiramail.Error(f"issue command requires action")
+
     action = args.pop(0)
 
     issue = get_issue(key)
@@ -302,7 +312,7 @@ def process_commands(mail: Optional[email.message.Message], fd: TextIO,
             out.append("")
 
             if words[0] == "issue":
-                r = command_issue(words[1:])
+                r = command_issue(mail, words[1:])
                 if isinstance(r, jiramail.Error):
                     jiramail.verbose(0, f"{r.message}")
                     out.append(f"ERROR: {r.message}")
