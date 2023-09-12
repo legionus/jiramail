@@ -345,6 +345,24 @@ def process_commands(mail: Optional[mailbox.Message], fd: TextIO,
     return ret
 
 
+def process_mail(mail: mailbox.Message,
+                 replies: List[email.message.EmailMessage]) -> bool:
+    rc = True
+
+    for part in mail.walk():
+        if part.get_content_type() != "text/plain":
+            continue
+
+        fd = io.StringIO(
+                initial_value=part.get_payload(),
+                newline='\n')
+
+        if not process_commands(mail, fd, replies):
+            rc = False
+
+    return rc
+
+
 def main(cmdargs: argparse.Namespace) -> int:
     global jserv, dry_run, no_reply
 
@@ -382,19 +400,11 @@ def main(cmdargs: argparse.Namespace) -> int:
             if "A" in flags:
                 continue
 
-            for part in mail.walk():
-                if part.get_content_type() != "text/plain":
-                    continue
+            if not process_mail(mail, replies):
+                rc = jiramail.EX_FAILURE
 
-                fd = io.StringIO(
-                        initial_value=part.get_payload(),
-                        newline='\n')
-
-                if not process_commands(mail, fd, replies):
-                    rc = jiramail.EX_FAILURE
-
-                mail.set_flags("ROA")
-                mbox.update_message(key, mail)
+            mail.set_flags("ROA")
+            mbox.update_message(key, mail)
 
         for reply in replies:
             mbox.append(reply)
