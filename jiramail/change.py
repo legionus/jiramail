@@ -89,15 +89,10 @@ def append_from(issue: jira.resources.Issue, f_id: str,
         return []
 
 
-def command_issue_change(issue: jira.resources.Issue,
-                         words: List[str]) -> None | jiramail.Error:
+def fields_from_words(words: List[str],
+                      issue: jira.resources.Issue,
+                      meta_info: Dict[str, Dict[str, Any]]) -> Dict[str, Any] | jiramail.Error:
     fields: Dict[str, Any] = {}
-
-    fields_by_id = jserv.jira.editmeta(issue.key)["fields"]
-    fields_by_name = {}
-
-    for i, v in fields_by_id.items():
-        fields_by_name[v["name"].lower()] = i
 
     for i in list(range(0, len(words), 3)):
         name = words[i]
@@ -112,22 +107,23 @@ def command_issue_change(issue: jira.resources.Issue,
             case _:
                 return jiramail.Error(f"unknown operator \"{action}\"")
 
-        if len(value) == 0:
-            value = None
-
-        f_id = fields_by_name.get(name.lower(), None)
-        if not f_id:
-            obj = fields_by_id.get(name, None)
-            if not obj:
+        meta = meta_info["ids"].get(name, None)
+        if not meta:
+            meta = meta_info["names"].get(name.lower(), None)
+            if not meta:
                 return jiramail.Error(f"the field \"{name}\" not found")
+            f_id = meta["fieldId"]
+        else:
             f_id = name
-
-        meta = fields_by_id[f_id]
 
         if len(meta["operations"]) > 0 and action not in meta["operations"]:
             return jiramail.Error(f"operation \"{action}\" not supported for field \"{meta['name']}\"")
 
         jiramail.verbose(3, f"FIELD id=({f_id}) name=({meta['name']})")
+
+        if len(value) == 0:
+            fields[f_id] = None
+            continue
 
         if "allowedValues" in meta:
             def get_value(x: Dict[str, Any]) -> str:
@@ -178,6 +174,26 @@ def command_issue_change(issue: jira.resources.Issue,
 
             case _:
                 fields[f_id] = value
+
+    return fields
+
+
+def command_issue_change(issue: jira.resources.Issue,
+                         words: List[str]) -> None | jiramail.Error:
+
+    meta_info: Dict[str, Dict[str, Any]] = {
+            "names": {},
+            "ids": {},
+            }
+
+    for i, v in jserv.jira.editmeta(issue.key)["fields"].items():
+        meta_info["names"][v["name"].lower()] = v
+        meta_info["ids"][i] = v
+
+    fields = fields_from_words(words, issue, meta_info)
+
+    if isinstance(fields, jiramail.Error):
+        return fields
 
     try:
         if fields:
