@@ -47,14 +47,6 @@ def set_mail_flags(mail: email.message.Message, flags: str) -> None:
     mail["X-Status"] = header_xstatus
 
 
-def get_issue(key: str) -> jira.resources.Issue | jiramail.Error:
-    try:
-        issue = jserv.jira.issue(key)
-    except jira.exceptions.JIRAError as e:
-        return jiramail.Error(f"unable to get {key} issue: {e.text}")
-    return issue
-
-
 def command_issue_assign(issue: jira.resources.Issue,
                          user_id: str) -> jira.resources.Issue | jiramail.Error:
     try:
@@ -312,9 +304,10 @@ def command_issue(mail: email.message.Message,
 
     action = args.pop(0)
 
-    issue = get_issue(key)
-    if isinstance(issue, jiramail.Error):
-        return issue
+    try:
+        issue = jserv.jira.issue(key)
+    except jira.exceptions.JIRAError as e:
+        return jiramail.Error(f"unable to get {key} issue: {e.text}")
 
     match action:
         case "assign":
