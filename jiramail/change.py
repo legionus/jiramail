@@ -381,7 +381,7 @@ def parse_commands(fd: TextIO) -> Tuple[List[Command], List[str]]:
             continue
 
         command = Command()
-        command.raw.append(f"> {line}")
+        command.raw.append(line)
         command.words += get_words(m.group(1))
 
         while True:
@@ -393,7 +393,7 @@ def parse_commands(fd: TextIO) -> Tuple[List[Command], List[str]]:
             line = str(value[:-1])
 
             command.words += get_words(line)
-            command.raw.append(f"> {line}")
+            command.raw.append(line)
 
         for i, word in enumerate(command.words):
             if word.startswith("<<"):
@@ -407,7 +407,7 @@ def parse_commands(fd: TextIO) -> Tuple[List[Command], List[str]]:
                         break
 
                     line = str(value[:-1])
-                    command.raw.append(f"> {line}")
+                    command.raw.append(line)
 
                     token_found = line == token
                     if token_found:
@@ -488,7 +488,7 @@ def process_commands(mail: email.message.Message, fd: TextIO,
         out: List[str] = []
 
         for command in commands:
-            out += command.raw
+            out += [f"> {line}" for line in command.raw]
             out.append("")
             if isinstance(command.error, jiramail.Error):
                 out.append(f"ERROR: {command.error.message}")
