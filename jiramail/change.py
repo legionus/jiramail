@@ -357,6 +357,12 @@ class Command:
             return self.words[1:]
         return []
 
+    def add_raw(self, line: str) -> None:
+        if line.endswith("\n"):
+            self.raw.append(line[:-1])
+        else:
+            self.raw.append(line)
+
     def __str__(self) -> str:
         return f"{self.__class__}: {self.name()} {self.args()}"
 
@@ -368,32 +374,24 @@ def parse_commands(fd: TextIO) -> Tuple[List[Command], List[str]]:
     commands: List[Command] = []
     content: List[str] = []
 
-    while True:
-        value = fd.readline()
-        if not value:
-            break
-
-        line = str(value[:-1])
-
-        m = re.match(r'^\s*jira\s+(.*)\s*$', line)
+    for value in fd:
+        m = re.match(r'^\s*jira\s+(.*)\s*$', value)
         if not m:
-            content.append(line)
+            content.append(value[:-1])
             continue
 
         command = Command()
-        command.raw.append(line)
+        command.add_raw(value)
         command.words += get_words(m.group(1))
 
-        while True:
-            if len(command.words) == 0 or command.words[-1] != "\\":
-                break
-            command.words.pop()
-
+        while len(command.words) > 0 and command.words[-1] == "\\":
             value = fd.readline()
-            line = str(value[:-1])
+            if not value:
+                break
 
-            command.words += get_words(line)
-            command.raw.append(line)
+            command.words.pop()
+            command.add_raw(value)
+            command.words += get_words(command.raw[-1])
 
         for i, word in enumerate(command.words):
             if word.startswith("<<"):
@@ -401,19 +399,14 @@ def parse_commands(fd: TextIO) -> Tuple[List[Command], List[str]]:
                 token_found = False
                 heredoc = []
 
-                while True:
-                    value = fd.readline()
-                    if not value:
-                        break
+                for value in fd:
+                    command.add_raw(value)
 
-                    line = str(value[:-1])
-                    command.raw.append(line)
-
-                    token_found = line == token
+                    token_found = command.raw[-1] == token
                     if token_found:
                         break
 
-                    heredoc.append(line)
+                    heredoc.append(command.raw[-1])
 
                 if not token_found:
                     command.error = jiramail.Error(f"enclosing token '{token}' not found")
