@@ -28,6 +28,25 @@ dry_run: bool = False
 no_reply: bool = False
 
 
+def set_mail_flags(mail: email.message.Message, flags: str) -> None:
+    header_status = ""
+    header_xstatus = ""
+
+    for flag in ('R', 'O'):
+        if flag in flags:
+            header_status += flag
+
+    for flag in ('D', 'F', 'A'):
+        if flag in flags:
+            header_xstatus += flag
+
+    del mail["Status"]
+    del mail["X-Status"]
+
+    mail["Status"] = header_status
+    mail["X-Status"] = header_xstatus
+
+
 def get_issue(key: str) -> jira.resources.Issue | jiramail.Error:
     try:
         issue = jserv.jira.issue(key)
@@ -454,8 +473,7 @@ def process_commands(mail: email.message.Message, fd: TextIO,
         resp.add_header("From", "jirachange")
         resp.add_header("Date", email.utils.format_datetime(datetime.now()))
         resp.add_header("Message-Id", msg_id)
-        resp.add_header("Status", "RO")
-        resp.add_header("X-Status", "A")
+        set_mail_flags(resp, "ROA")
 
         subj = mail.get("Subject")
         if subj:
@@ -542,14 +560,12 @@ def main(cmdargs: argparse.Namespace) -> int:
             if not process_mail(mail, replies):
                 rc = jiramail.EX_FAILURE
 
-            mail.set_flags("ROA")
+            set_mail_flags(mail, "ROA")
             mbox.update_message(key, mail)
 
         if cmdargs.stdin:
             stdin_mail = email.message_from_file(sys.stdin)
-            stdin_mail["Status"] = "RO"
-            stdin_mail["X-Status"] = "A"
-
+            set_mail_flags(stdin_mail, "ROA")
             mbox.append(stdin_mail)
 
             if not process_mail(stdin_mail, replies):
