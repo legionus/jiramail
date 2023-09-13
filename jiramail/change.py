@@ -18,6 +18,7 @@ from typing import Optional, Dict, List, Tuple, Callable, Any, TextIO
 
 import jira
 import jira.resources
+import jira.resilientsession
 
 import jiramail
 
@@ -35,7 +36,8 @@ def get_issue(key: str) -> jira.resources.Issue | jiramail.Error:
     return issue
 
 
-def command_issue_assign(issue: jira.resources.Issue, user_id: str) -> None | jiramail.Error:
+def command_issue_assign(issue: jira.resources.Issue,
+                         user_id: str) -> jira.resources.Issue | jiramail.Error:
     try:
         if user_id != "%me":
             user = jserv.jira.user(user_id)
@@ -52,10 +54,11 @@ def command_issue_assign(issue: jira.resources.Issue, user_id: str) -> None | ji
     except jira.exceptions.JIRAError as e:
         return jiramail.Error(f"unable to assign issue: {e}")
 
-    return None
+    return issue
 
 
-def command_issue_comment(issue: jira.resources.Issue, text: str) -> None | jiramail.Error:
+def command_issue_comment(issue: jira.resources.Issue,
+                          text: str) -> jira.resources.Issue | jiramail.Error:
     try:
         if not dry_run:
             jserv.jira.add_comment(issue, text)
@@ -63,7 +66,7 @@ def command_issue_comment(issue: jira.resources.Issue, text: str) -> None | jira
     except jira.exceptions.JIRAError as e:
         return jiramail.Error(f"unable to add comment to issue {issue.key}: {e}")
 
-    return None
+    return issue
 
 
 def valid_resource(kind: str, value: str, res: List[Dict[str, Any]],
@@ -90,7 +93,7 @@ def append_from(issue: jira.resources.Issue, f_id: str,
 
 
 def fields_from_words(words: List[str],
-                      issue: jira.resources.Issue,
+                      issue: Optional[jira.resources.Issue],
                       meta_info: Dict[str, Dict[str, Any]]) -> Dict[str, Any] | jiramail.Error:
     fields: Dict[str, Any] = {}
 
@@ -112,7 +115,7 @@ def fields_from_words(words: List[str],
             meta = meta_info["names"].get(name.lower(), None)
             if not meta:
                 return jiramail.Error(f"the field \"{name}\" not found")
-            f_id = meta["fieldId"]
+            f_id = meta["id"]
         else:
             f_id = name
 
@@ -145,17 +148,17 @@ def fields_from_words(words: List[str],
 
                 match meta["schema"]["items"]:
                     case "string":
-                        if action == "add":
+                        if action == "add" and issue:
                             fields[f_id] += append_from(issue, f_id, lambda x: x)
                         fields[f_id].append(value)
 
                     case "option":
-                        if action == "add":
+                        if action == "add" and issue:
                             fields[f_id] += append_from(issue, f_id, lambda x: {"value": x.value})
                         fields[f_id].append({"value": value})
 
                     case _:
-                        if action == "add":
+                        if action == "add" and issue:
                             fields[f_id] += append_from(issue, f_id, lambda x: {"name": x.name})
                         fields[f_id].append({"name": value})
 
@@ -179,7 +182,7 @@ def fields_from_words(words: List[str],
 
 
 def command_issue_change(issue: jira.resources.Issue,
-                         words: List[str]) -> None | jiramail.Error:
+                         words: List[str]) -> jira.resources.Issue | jiramail.Error:
 
     meta_info: Dict[str, Dict[str, Any]] = {
             "names": {},
@@ -187,6 +190,8 @@ def command_issue_change(issue: jira.resources.Issue,
             }
 
     for i, v in jserv.jira.editmeta(issue.key)["fields"].items():
+        if "id" not in v:
+            v["id"] = i
         meta_info["names"][v["name"].lower()] = v
         meta_info["ids"][i] = v
 
@@ -206,13 +211,75 @@ def command_issue_change(issue: jira.resources.Issue,
         err = e.response.json()["errors"]
         return jiramail.Error(f"unable to change fields of issue {issue.key}: {err}")
 
-    return None
+    return issue
+
+
+def command_issue_create(subject: str,
+                         content: List[str],
+                         words: List[str]) -> jira.resources.Issue | jiramail.Error:
+    jserv.fill_fields()
+
+    meta_info: Dict[str, Dict[str, Any]] = {
+            "names": jserv.fields_by_name,
+            "ids": {},
+            }
+
+    for v in meta_info["names"].values():
+        meta_info["ids"][v["id"]] = v
+
+    fields = fields_from_words(words, None, meta_info)
+
+    if isinstance(fields, jiramail.Error):
+        return fields
+
+    if "summary" not in fields:
+        fields["summary"] = subject
+
+    if "description" not in fields:
+        fields["description"] = "\n".join(content)
+
+    try:
+        if dry_run:
+            jiramail.verbose(3, pprint.pformat(fields))
+
+            issue = jira.resources.Issue(options={},
+                                         session=jira.resilientsession.ResilientSession())
+            issue.id = "0"
+            issue.key = "NONE-0"
+        else:
+            issue = jserv.jira.create_issue(fields=fields)
+
+    except jira.exceptions.JIRAError as e:
+        err = e.response.json()["errors"]
+        return jiramail.Error(f"unable to create issue: {err}")
+
+    return issue
 
 
 def command_issue(mail: email.message.Message,
+                  content: List[str],
                   args: List[str]) -> None | jiramail.Error:
     if len(args) < 1:
         return jiramail.Error(f"issue command is too short: {args}")
+
+    if args[0] in ("create"):
+        args.pop(0)
+
+        if len(args) % 3 != 0:
+            return jiramail.Error("'create' keyword requires at least 3 arguments")
+
+        issue = command_issue_create(mail.get("Subject", ""), content, args)
+
+        if isinstance(issue, jiramail.Error):
+            return issue
+
+        del mail["X-Jiramail-Issue-Id"]
+        del mail["X-Jiramail-Issue-Key"]
+
+        mail["X-Jiramail-Issue-Id"] = f"{issue.id}"
+        mail["X-Jiramail-Issue-Key"] = f"{issue.key}"
+
+        return None
 
     if args[0] in ("assign", "comment", "change"):
         if "X-Jiramail-Issue-Key" not in mail:
@@ -234,17 +301,21 @@ def command_issue(mail: email.message.Message,
         case "assign":
             if len(args) < 1:
                 return jiramail.Error("'assign' keyword requires argument")
-            return command_issue_assign(issue, args[0])
+            res = command_issue_assign(issue, args[0])
         case "comment":
             if len(args) < 1:
                 return jiramail.Error("'comment' keyword requires argument")
-            return command_issue_comment(issue, args[0])
+            res = command_issue_comment(issue, args[0])
         case "change":
             if len(args) % 3 != 0:
                 return jiramail.Error("'change' keyword requires at least 3 arguments")
-            return command_issue_change(issue, args)
+            res = command_issue_change(issue, args)
+        case _:
+            res = jiramail.Error(f"issue: unknown action: {action}")
 
-    return jiramail.Error(f"issue: unknown action: {action}")
+    if isinstance(res, jiramail.Error):
+        return res
+    return None
 
 
 def get_words(s: str) -> List[str]:
@@ -351,7 +422,7 @@ def process_commands(mail: email.message.Message, fd: TextIO,
                      replies: List[email.message.EmailMessage]) -> bool:
     ret = True
 
-    commands, _ = parse_commands(fd)
+    commands, content = parse_commands(fd)
 
     for command in commands:
         jiramail.verbose(2, f"processing command: {command.words}")
@@ -362,7 +433,7 @@ def process_commands(mail: email.message.Message, fd: TextIO,
             continue
 
         if command.name() == "issue":
-            r = command_issue(mail, command.args())
+            r = command_issue(mail, content, command.args())
             if isinstance(r, jiramail.Error):
                 jiramail.verbose(0, f"{r.message}")
                 command.error = r

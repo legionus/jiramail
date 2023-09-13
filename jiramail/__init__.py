@@ -50,17 +50,21 @@ class Connection:
 
         verbose(1, "connected to JIRA")
 
-        self._fields_by_name: Dict[str, Any] = {}
+        self.fields_by_name: Dict[str, Any] = {}
+
+    def fill_fields(self) -> None:
+        if self.fields_by_name:
+            return
+
+        for v in self.jira.fields():
+            if "clauseNames" in v:
+                for n in v["clauseNames"]:
+                    self.fields_by_name[n.lower()] = v
+            self.fields_by_name[v["name"].lower()] = v
 
     def field_by_name(self, name: str, default: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        if not self._fields_by_name:
-            for v in self.jira.fields():
-                if "clauseNames" in v:
-                    for n in v["clauseNames"]:
-                        self._fields_by_name[n.lower()] = v
-                self._fields_by_name[v["name"].lower()] = v
-
-        return self._fields_by_name.get(name, default)
+        self.fill_fields()
+        return self.fields_by_name.get(name, default)
 
 
 class Mailbox:
