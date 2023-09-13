@@ -193,20 +193,20 @@ def command_issue_change(issue: jira.resources.Issue,
     return None
 
 
-def command_issue(mail: Optional[email.message.Message],
+def command_issue(mail: email.message.Message,
                   args: List[str]) -> None | jiramail.Error:
     if len(args) < 1:
         return jiramail.Error(f"issue command is too short: {args}")
 
     if args[0] in ("assign", "comment", "change"):
-        if not mail or "X-Jiramail-Issue-Key" not in mail:
+        if "X-Jiramail-Issue-Key" not in mail:
             return jiramail.Error("header with issue number not found. Maybe it's because you don't reply to the generated email.")
         key = mail["X-Jiramail-Issue-Key"]
     else:
         key = args.pop(0)
 
     if len(args) < 1:
-        return jiramail.Error(f"issue command requires action")
+        return jiramail.Error("issue command requires action")
 
     action = args.pop(0)
 
@@ -235,7 +235,7 @@ def get_words(s: str) -> List[str]:
     return [x for x in re.split(r'("[^"]+"|\'[^\']+\'|\S+)', s) if len(x.strip()) > 0]
 
 
-def process_commands(mail: Optional[email.message.Message], fd: TextIO,
+def process_commands(mail: email.message.Message, fd: TextIO,
                      replies: List[email.message.EmailMessage]) -> bool:
     ret = True
     out = []
@@ -325,7 +325,7 @@ def process_commands(mail: Optional[email.message.Message], fd: TextIO,
 
             out.append("")
 
-    if out and mail and not no_reply:
+    if out and not no_reply:
         subject = []
         if ret:
             subject.append("[DONE]")
@@ -435,7 +435,11 @@ def main(cmdargs: argparse.Namespace) -> int:
 
         mbox.close()
 
-    elif not process_commands(None, sys.stdin, []):
-        rc = jiramail.EX_FAILURE
+    else:
+        no_reply = True
+        empty = email.message.EmailMessage()
+
+        if not process_commands(empty, sys.stdin, []):
+            rc = jiramail.EX_FAILURE
 
     return rc
