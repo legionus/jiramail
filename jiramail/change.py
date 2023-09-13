@@ -14,7 +14,7 @@ import sys
 
 from datetime import datetime
 
-from typing import Optional, Dict, List, Callable, Any, TextIO
+from typing import Optional, Dict, List, Tuple, Callable, Any, TextIO
 
 import jira
 import jira.resources
@@ -251,10 +251,32 @@ def get_words(s: str) -> List[str]:
     return [x for x in re.split(r'("[^"]+"|\'[^\']+\'|\S+)', s) if len(x.strip()) > 0]
 
 
-def process_commands(mail: email.message.Message, fd: TextIO,
-                     replies: List[email.message.EmailMessage]) -> bool:
-    ret = True
-    out = []
+class Command:
+    def __init__(self) -> None:
+        self.words: List[str] = []
+        self.raw: List[str] = []
+        self.error: Optional[jiramail.Error] = None
+
+    def name(self) -> str:
+        if len(self.words) > 1:
+            return self.words[0]
+        return "None"
+
+    def args(self) -> List[str]:
+        if len(self.words) > 1:
+            return self.words[1:]
+        return []
+
+    def __str__(self) -> str:
+        return f"{self.__class__}: {self.name()} {self.args()}"
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+
+def parse_commands(fd: TextIO) -> Tuple[List[Command], List[str]]:
+    commands: List[Command] = []
+    content: List[str] = []
 
     while True:
         value = fd.readline()
@@ -265,34 +287,25 @@ def process_commands(mail: email.message.Message, fd: TextIO,
 
         m = re.match(r'^\s*jira\s+(.*)\s*$', line)
         if not m:
+            content.append(line)
             continue
 
-        out.append(f"> {line}")
-
-        words = []
-        words += get_words(m.group(1))
+        command = Command()
+        command.raw.append(f"> {line}")
+        command.words += get_words(m.group(1))
 
         while True:
-            if len(words) == 0 or words[-1] != "\\":
+            if len(command.words) == 0 or command.words[-1] != "\\":
                 break
-            words.pop()
+            command.words.pop()
 
             value = fd.readline()
             line = str(value[:-1])
 
-            out.append(f"> {line}")
+            command.words += get_words(line)
+            command.raw.append(f"> {line}")
 
-            words += get_words(line)
-
-        for i, word in enumerate(words):
-            if word.startswith('"') or word.startswith("'"):
-                words[i] = word[1:-1]
-
-        jiramail.verbose(2, f"processing command: {words}")
-
-        words_valid = True
-
-        for i, word in enumerate(words):
+        for i, word in enumerate(command.words):
             if word.startswith("<<"):
                 token = word[2:]
                 token_found = False
@@ -304,7 +317,7 @@ def process_commands(mail: email.message.Message, fd: TextIO,
                         break
 
                     line = str(value[:-1])
-                    out.append(f"> {line}")
+                    command.raw.append(f"> {line}")
 
                     token_found = line == token
                     if token_found:
@@ -313,35 +326,49 @@ def process_commands(mail: email.message.Message, fd: TextIO,
                     heredoc.append(line)
 
                 if not token_found:
-                    jiramail.verbose(0, f"enclosing token '{token}' not found")
-                    words_valid = False
+                    command.error = jiramail.Error(f"enclosing token '{token}' not found")
                     continue
 
-                words[i] = "\n".join(heredoc)
+                command.words[i] = "\n".join(heredoc)
 
-        if words_valid:
-            if len(words) < 1:
-                jiramail.verbose(0, f"command is too short: {words}")
-                words_valid = False
+            elif word.startswith('"') or word.startswith("'"):
+                command.words[i] = word[1:-1]
 
-        if words_valid:
-            out.append("")
+        if not command.error:
+            if len(command.words) < 1:
+                command.error = jiramail.Error(f"command is too short: {command.words}")
+                continue
 
-            if words[0] == "issue":
-                r = command_issue(mail, words[1:])
-                if isinstance(r, jiramail.Error):
-                    jiramail.verbose(0, f"{r.message}")
-                    out.append(f"ERROR: {r.message}")
-                    ret = False
-                else:
-                    out.append("DONE")
-            else:
-                out.append(f"ERROR: unknown keyword \"{words[0]}\"")
+            if command.name() != "issue":
+                command.error = jiramail.Error(f"ERROR: unknown keyword \"{command.name()}\"")
+
+        commands.append(command)
+
+    return commands, content
+
+
+def process_commands(mail: email.message.Message, fd: TextIO,
+                     replies: List[email.message.EmailMessage]) -> bool:
+    ret = True
+
+    commands, _ = parse_commands(fd)
+
+    for command in commands:
+        jiramail.verbose(2, f"processing command: {command.words}")
+
+        if isinstance(command.error, jiramail.Error):
+            jiramail.verbose(0, f"{command.error.message}")
+            ret = False
+            continue
+
+        if command.name() == "issue":
+            r = command_issue(mail, command.args())
+            if isinstance(r, jiramail.Error):
+                jiramail.verbose(0, f"{r.message}")
+                command.error = r
                 ret = False
 
-            out.append("")
-
-    if out and not no_reply:
+    if commands and not no_reply:
         subject = []
         if ret:
             subject.append("[DONE]")
@@ -368,6 +395,17 @@ def process_commands(mail: email.message.Message, fd: TextIO,
         if parent_id:
             resp.add_header("In-Reply-To", parent_id)
             resp.add_header("References", f"{parent_id} {msg_id}")
+
+        out: List[str] = []
+
+        for command in commands:
+            out += command.raw
+            out.append("")
+            if isinstance(command.error, jiramail.Error):
+                out.append(f"ERROR: {command.error.message}")
+            else:
+                out.append("DONE")
+            out.append("")
 
         resp.set_content("\n".join(out))
         replies.append(resp)
