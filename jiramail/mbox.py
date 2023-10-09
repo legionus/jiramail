@@ -22,9 +22,6 @@ import jira.resources
 import jiramail
 
 
-jserv: jiramail.Connection
-
-
 class Subject:
     def __init__(self, key: str, text: str) -> None:
         self.version = 1
@@ -91,7 +88,7 @@ def get_issue_field(issue: jira.resources.Issue, name: str) -> Optional[Any]:
         return issue.get_field(field_name=name)
     except AttributeError:
         pass
-    field = jserv.field_by_name(name.lower(), None)
+    field = jiramail.jserv.field_by_name(name.lower(), None)
     if field:
         try:
             return issue.get_field(field["id"])
@@ -109,7 +106,7 @@ def get_issue_info(issue: jira.resources.Issue,
                    items: List[Dict[str, Any]]) -> List[Tuple[str, str]]:
     ret = []
     for item in items:
-        field = jserv.field_by_name(item['name'])
+        field = jiramail.jserv.field_by_name(item['name'])
         value = get_issue_field(issue, item['name'])
         if value:
             ret.append((field['name'], item['getter'](value)))
@@ -393,7 +390,7 @@ def process_query(query: str, mbox: jiramail.Mailbox) -> None:
     jiramail.verbose(2, f"processing query `{query}` ...")
 
     while True:
-        res = jserv.jira.search_issues(query,
+        res = jiramail.jserv.jira.search_issues(query,
                                        expand="changelog",
                                        startAt=pos,
                                        maxResults=chunk)
@@ -412,8 +409,6 @@ def process_query(query: str, mbox: jiramail.Mailbox) -> None:
 
 
 def main(cmdargs: argparse.Namespace) -> int:
-    global jserv
-
     jiramail.verbosity = cmdargs.verbose
 
     config = jiramail.read_config()
@@ -429,7 +424,7 @@ def main(cmdargs: argparse.Namespace) -> int:
         return jiramail.EX_FAILURE
 
     try:
-        jserv = jiramail.Connection(config.get("jira", {}))
+        jiramail.jserv = jiramail.Connection(config.get("jira", {}))
     except Exception as e:
         jiramail.verbose(0, f"unable to connect to jira: {e}")
         return jiramail.EX_FAILURE
@@ -441,7 +436,7 @@ def main(cmdargs: argparse.Namespace) -> int:
         process_query(query, mbox)
 
     for key in cmdargs.issues:
-        issue = jserv.jira.issue(key, expand="changelog")
+        issue = jiramail.jserv.jira.issue(key, expand="changelog")
         add_issue(issue, mbox)
 
     mbox.close()

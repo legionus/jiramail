@@ -68,6 +68,9 @@ class Connection:
         return self.fields_by_name.get(name, default)
 
 
+jserv: Connection
+
+
 class Mailbox:
     def __init__(self, path: str):
         verbose(2, f"openning the mailbox {path} ...")

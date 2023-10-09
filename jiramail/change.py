@@ -23,7 +23,6 @@ import jira.resilientsession
 import jiramail
 
 
-jserv: jiramail.Connection
 dry_run: bool = False
 no_reply: bool = False
 
@@ -51,16 +50,16 @@ def command_issue_assign(issue: jira.resources.Issue,
                          user_id: str) -> jira.resources.Issue | jiramail.Error:
     try:
         if user_id != "%me":
-            user = jserv.jira.user(user_id)
+            user = jiramail.jserv.jira.user(user_id)
         else:
-            user = jserv.jira.session()
+            user = jiramail.jserv.jira.session()
 
     except jira.exceptions.JIRAError as e:
         return jiramail.Error(f"unable to get \"{user_id}\" user: {e.text}")
 
     try:
         if not dry_run:
-            jserv.jira.assign_issue(issue.key, user.name)
+            jiramail.jserv.jira.assign_issue(issue.key, user.name)
 
     except jira.exceptions.JIRAError as e:
         return jiramail.Error(f"unable to assign issue: {e}")
@@ -72,7 +71,7 @@ def command_issue_comment(issue: jira.resources.Issue,
                           text: str) -> jira.resources.Issue | jiramail.Error:
     try:
         if not dry_run:
-            jserv.jira.add_comment(issue, text)
+            jiramail.jserv.jira.add_comment(issue, text)
 
     except jira.exceptions.JIRAError as e:
         return jiramail.Error(f"unable to add comment to issue {issue.key}: {e}")
@@ -200,7 +199,7 @@ def command_issue_change(issue: jira.resources.Issue,
             "ids": {},
             }
 
-    for i, v in jserv.jira.editmeta(issue.key)["fields"].items():
+    for i, v in jiramail.jserv.jira.editmeta(issue.key)["fields"].items():
         if "id" not in v:
             v["id"] = i
         meta_info["names"][v["name"].lower()] = v
@@ -228,10 +227,10 @@ def command_issue_change(issue: jira.resources.Issue,
 def command_issue_create(subject: str,
                          content: List[str],
                          words: List[str]) -> jira.resources.Issue | jiramail.Error:
-    jserv.fill_fields()
+    jiramail.jserv.fill_fields()
 
     meta_info: Dict[str, Dict[str, Any]] = {
-            "names": jserv.fields_by_name,
+            "names": jiramail.jserv.fields_by_name,
             "ids": {},
             }
 
@@ -258,7 +257,7 @@ def command_issue_create(subject: str,
             issue.id = "0"
             issue.key = "NONE-0"
         else:
-            issue = jserv.jira.create_issue(fields=fields)
+            issue = jiramail.jserv.jira.create_issue(fields=fields)
 
     except jira.exceptions.JIRAError as e:
         err = e.response.json()["errors"]
@@ -305,7 +304,7 @@ def command_issue(mail: email.message.Message,
     action = args.pop(0)
 
     try:
-        issue = jserv.jira.issue(key)
+        issue = jiramail.jserv.jira.issue(key)
     except jira.exceptions.JIRAError as e:
         return jiramail.Error(f"unable to get {key} issue: {e.text}")
 
@@ -507,7 +506,7 @@ def process_mail(mail: email.message.Message,
 
 
 def main(cmdargs: argparse.Namespace) -> int:
-    global jserv, dry_run, no_reply
+    global dry_run, no_reply
 
     jiramail.verbosity = cmdargs.verbose
     dry_run = cmdargs.dry_run
@@ -520,7 +519,7 @@ def main(cmdargs: argparse.Namespace) -> int:
         return jiramail.EX_FAILURE
 
     try:
-        jserv = jiramail.Connection(config.get("jira", {}))
+        jiramail.jserv = jiramail.Connection(config.get("jira", {}))
     except Exception as e:
         jiramail.verbose(0, f"unable to connect to jira: {e}")
         return jiramail.EX_FAILURE
