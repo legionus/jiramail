@@ -1,14 +1,15 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2023  Alexey Gladkov <gladkov.alexey@gmail.com>
 
+import configparser
 import email
 import mailbox
 import os
 import os.path
+import re
 import subprocess
 import sys
 import time
-import tomllib
 
 from typing import Optional, Dict, Tuple, List, Union, Any
 from collections.abc import Iterator
@@ -151,6 +152,28 @@ def git_run_command(gitdir: Optional[str], args: List[str],
     return ecode, output
 
 
+def parse_config(file: str) -> Dict[str, Any]:
+    parser = configparser.ConfigParser()
+    parser.SECTCRE = re.compile(r"\[ *(?P<header>[^]]+?) *\]")
+    parser.read([file])
+
+    config: Dict[str, Any] = {}
+    for name in parser.sections():
+        m = re.match(r'(?P<name>\S+)\s+"(?P<subname>[^"]+)"', name)
+        if not m:
+            config[name] = dict(parser.items(name))
+            continue
+
+        section =  m.group("name")
+        subname = m.group("subname")
+
+        if section not in config:
+            config[section] = {}
+
+        config[section][subname] = dict(parser.items(name))
+
+    return config
+
 def read_config() -> Dict[str, Any] | Error:
     config = None
 
@@ -162,9 +185,8 @@ def read_config() -> Dict[str, Any] | Error:
 
         verbose(2, f"picking config file `{config_file}' ...")
 
-        with open(config_file, "rb") as fd:
-            config = tomllib.load(fd)
-            break
+        config = parse_config(config_file)
+        break
 
     if not config:
         return Error("config file not found")
