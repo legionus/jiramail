@@ -20,6 +20,11 @@ def cmd_change(cmdargs: argparse.Namespace) -> int:
     return jiramail.change.main(cmdargs)
 
 
+def cmd_subs(cmdargs: argparse.Namespace) -> int:
+    import jiramail.subs
+    return jiramail.subs.main(cmdargs)
+
+
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("-v", "--verbose",
                         dest="verbose", action='count', default=0,
@@ -84,6 +89,13 @@ Changes made to the issue are also saved in the form of emails.
                      help="accept a mail stream on standard input, process commands from it and write it to mailbox")
     sp1.add_argument("mailbox",
                      help="path to mbox with commands")
+
+    # jiramail subs
+    sp2 = subparsers.add_parser("subs",
+                                help="synchronizes subscriptions with saved queries with their mboxes.",
+                                epilog="Report bugs to authors.")
+    sp2.set_defaults(func=cmd_subs)
+    add_common_arguments(sp2)
 
     return parser
 
