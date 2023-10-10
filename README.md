@@ -9,11 +9,11 @@ My main desire is to use mutt to read jira tickets.
 
 The utility uses a config file to store authentication information.
 
-```toml
+```ini
 [jira]
-server = "https://issues.redhat.com/"
-auth = "token"
-token = "<sometoken>"
+server = https://issues.redhat.com/
+auth = token
+token = <sometoken>
 ```
 
 ## Usage
@@ -31,6 +31,25 @@ jiramail.sh mbox --assignee "user" user.mbox
 
 The command will create a mailbox if it does not exist or add emails to an
 existing one.
+
+### Sub-Command: jiramail subs
+In order not to run the utility for each query, it's possible to specify them in
+the configuration file.
+
+```ini
+[sub "section 1"]
+assignee = user
+mbox = /path/to/user.mbox
+
+[sub "section 2"]
+query = project = RHEL
+mbox = /path/to/rhel.mbox
+
+[sub "section 3"]
+query = project = PROJQUAY
+mbox = /path/to/quay.mbox
+skip = true
+```
 
 ### Sub-Command: jiramail change
 
