@@ -52,9 +52,7 @@ Changes made to the issue are also saved in the form of emails.
             epilog="Report bugs to authors.",
             allow_abbrev=True)
 
-    parser.add_argument("-V", "--version",
-                        action='version',
-                        version=jiramail.__VERSION__)
+    add_common_arguments(parser)
 
     subparsers = parser.add_subparsers(dest="subcmd", help="sub-command help")
 
