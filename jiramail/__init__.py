@@ -18,7 +18,7 @@ from collections.abc import Iterator
 import jira
 
 
-__VERSION__ = '1'
+__VERSION__ = '3'
 
 EX_SUCCESS = 0 # Successful exit status.
 EX_FAILURE = 1 # Failing exit status.
