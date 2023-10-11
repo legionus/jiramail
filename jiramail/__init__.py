@@ -54,7 +54,7 @@ class Connection:
 
         logger.info("connected to JIRA")
 
-        self.fields_by_name: Dict[str, Any] = {}
+        self.fields_by_name: Dict[str, Dict[str, Any]] = {}
 
     def fill_fields(self) -> None:
         if self.fields_by_name:
@@ -66,7 +66,7 @@ class Connection:
                     self.fields_by_name[n.lower()] = v
             self.fields_by_name[v["name"].lower()] = v
 
-    def field_by_name(self, name: str, default: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def field_by_name(self, name: str, default: Dict[str, Any]) -> Dict[str, Any]:
         self.fill_fields()
         return self.fields_by_name.get(name, default)
 

@@ -90,7 +90,7 @@ def get_issue_field(issue: jira.resources.Issue, name: str) -> Optional[Any]:
         return issue.get_field(field_name=name)
     except AttributeError:
         pass
-    field = jiramail.jserv.field_by_name(name.lower(), None)
+    field = jiramail.jserv.field_by_name(name.lower(), {})
     if field:
         try:
             return issue.get_field(field["id"])
@@ -108,7 +108,7 @@ def get_issue_info(issue: jira.resources.Issue,
                    items: List[Dict[str, Any]]) -> List[Tuple[str, str]]:
     ret = []
     for item in items:
-        field = jiramail.jserv.field_by_name(item['name'])
+        field = jiramail.jserv.field_by_name(item['name'], {})
         value = get_issue_field(issue, item['name'])
         if value:
             ret.append((field['name'], item['getter'](value)))
