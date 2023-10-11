@@ -6,8 +6,11 @@ __author__ = 'Alexey Gladkov <gladkov.alexey@gmail.com>'
 
 import argparse
 import sys
+import logging
 
 import jiramail
+
+logger = jiramail.logger
 
 
 def cmd_mbox(cmdargs: argparse.Namespace) -> int:
@@ -29,6 +32,9 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("-v", "--verbose",
                         dest="verbose", action='count', default=0,
                         help="print a message for each action")
+    parser.add_argument('-q', '--quiet',
+                        dest="quiet", action='store_true', default=False,
+                        help='Output critical information only')
     parser.add_argument("-V", "--version",
                         action='version',
                         version=jiramail.__VERSION__)
@@ -100,9 +106,33 @@ Changes made to the issue are also saved in the form of emails.
     return parser
 
 
+def setup_logger(cmdargs: argparse.Namespace) -> None:
+    match cmdargs.verbose:
+        case 0:
+            level = logging.WARNING
+        case 1:
+            level = logging.INFO
+        case _:
+            level = logging.DEBUG
+
+    if cmdargs.quiet:
+        level = logging.CRITICAL
+
+    fmt = logging.Formatter(fmt="%(asctime)s %(message)s",  datefmt="[%H:%M:%S]")
+
+    handlr = logging.StreamHandler()
+    handlr.setLevel(level)
+    handlr.setFormatter(fmt)
+
+    logger.setLevel(level)
+    logger.addHandler(handlr)
+
+
 def cmd() -> int:
     parser = setup_parser()
     cmdargs = parser.parse_args()
+
+    setup_logger(cmdargs)
 
     if 'func' not in cmdargs:
         parser.print_help()

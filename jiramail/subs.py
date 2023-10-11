@@ -10,15 +10,16 @@ import re
 import jiramail
 import jiramail.mbox
 
+logger = jiramail.logger
 config_section = "sub"
 
-def main(cmdargs: argparse.Namespace) -> int:
-    jiramail.verbosity = cmdargs.verbose
 
+# pylint: disable-next=unused-argument
+def main(cmdargs: argparse.Namespace) -> int:
     config = jiramail.read_config()
 
     if isinstance(config, jiramail.Error):
-        jiramail.verbose(0, f"{config.message}")
+        logger.critical("%s", config.message)
         return jiramail.EX_FAILURE
 
     if config_section not in config:
@@ -27,7 +28,7 @@ def main(cmdargs: argparse.Namespace) -> int:
     try:
         jiramail.jserv = jiramail.Connection(config.get("jira", {}))
     except Exception as e:
-        jiramail.verbose(0, f"unable to connect to jira: {e}")
+        logger.critical("unable to connect to jira: %s", e)
         return jiramail.EX_FAILURE
 
     ret = jiramail.EX_SUCCESS
@@ -36,22 +37,23 @@ def main(cmdargs: argparse.Namespace) -> int:
         section = config[config_section][target]
 
         if "skip" in section and re.match(r'^(1|on|yes|true)$', section["skip"], re.IGNORECASE):
-            jiramail.verbose(1, f"syncing section '{target}' skipped")
+            logger.info("syncing section `%s' skipped", target)
             continue
 
         if "mbox" not in section:
-            jiramail.verbose(0, f"section '{config_section}.{target}' does not contain the 'mbox' parameter which specifies the output mbox file.")
+            logger.critical("section `%s.%s' does not contain the 'mbox' parameter which specifies the output mbox file.",
+                            config_section, target)
             ret = jiramail.EX_FAILURE
             continue
 
         mailbox = section["mbox"]
 
-        jiramail.verbose(1, f"syncing section '{target}' to '{mailbox}' ...")
+        logger.info("syncing section `%s' to `%s' ...", target, mailbox)
 
         try:
             mbox = jiramail.Mailbox(mailbox)
         except Exception as e:
-            jiramail.verbose(0, f"unable to open mailbox: {e}")
+            logger.critical("unable to open mailbox: %s", e)
             ret = jiramail.EX_FAILURE
             continue
 
@@ -64,6 +66,6 @@ def main(cmdargs: argparse.Namespace) -> int:
 
         mbox.close()
 
-        jiramail.verbose(0, f"section '{target}' synced")
+        logger.critical("section `%s' synced", target)
 
     return ret

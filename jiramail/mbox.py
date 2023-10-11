@@ -21,6 +21,8 @@ import jira.resources
 
 import jiramail
 
+logger = jiramail.logger
+
 
 class Subject:
     def __init__(self, key: str, text: str) -> None:
@@ -287,7 +289,7 @@ def comment_email(issue: jira.resources.Issue, comment: jira.resources.Comment,
 
 
 def add_issue(issue: jira.resources.Issue, mbox: jiramail.Mailbox) -> None:
-    jiramail.verbose(2, f"processing issue {issue.key} ...")
+    logger.debug("processing issue %s ...", issue.key)
     # pprint.pprint(issue.raw)
 
     date = str(get_issue_field(issue, "created"))
@@ -367,7 +369,7 @@ def add_issue(issue: jira.resources.Issue, mbox: jiramail.Mailbox) -> None:
             mbox.append(mail)
             continue
 
-        jiramail.verbose(0, f"unknown history item: {repr(el)}")
+        logger.critical("unknown history item: %s", repr(el))
 
     if history and changes:
         mail = changes_email(issue, history.id, history.created,
@@ -387,7 +389,7 @@ def process_query(query: str, mbox: jiramail.Mailbox) -> None:
     pos = 0
     chunk = 50
 
-    jiramail.verbose(2, f"processing query `{query}` ...")
+    logger.debug("processing query `%s` ...", query)
 
     while True:
         res = jiramail.jserv.jira.search_issues(query,
@@ -398,7 +400,7 @@ def process_query(query: str, mbox: jiramail.Mailbox) -> None:
             break
 
         if pos == 0:
-            jiramail.verbose(1, f"query `{query}` found {res.total} issues")
+            logger.info("query `%s` found %d issues", query, res.total)
 
         for issue in res:
             add_issue(issue, mbox)
@@ -409,24 +411,22 @@ def process_query(query: str, mbox: jiramail.Mailbox) -> None:
 
 
 def main(cmdargs: argparse.Namespace) -> int:
-    jiramail.verbosity = cmdargs.verbose
-
     config = jiramail.read_config()
 
     if isinstance(config, jiramail.Error):
-        jiramail.verbose(0, f"{config.message}")
+        logger.critical("%s", config.message)
         return jiramail.EX_FAILURE
 
     try:
         mbox = jiramail.Mailbox(cmdargs.mailbox)
     except Exception as e:
-        jiramail.verbose(0, f"unable to open mailbox: {e}")
+        logger.critical("unable to open mailbox: %s", e)
         return jiramail.EX_FAILURE
 
     try:
         jiramail.jserv = jiramail.Connection(config.get("jira", {}))
     except Exception as e:
-        jiramail.verbose(0, f"unable to connect to jira: {e}")
+        logger.critical("unable to connect to jira: %s", e)
         return jiramail.EX_FAILURE
 
     for username in cmdargs.assignee:

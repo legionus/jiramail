@@ -22,6 +22,7 @@ import jira.resilientsession
 
 import jiramail
 
+logger = jiramail.logger
 
 dry_run: bool = False
 no_reply: bool = False
@@ -132,7 +133,7 @@ def fields_from_words(words: List[str],
         if len(meta["operations"]) > 0 and action not in meta["operations"]:
             return jiramail.Error(f"operation \"{action}\" not supported for field \"{meta['name']}\"")
 
-        jiramail.verbose(3, f"FIELD id=({f_id}) name=({meta['name']})")
+        logger.debug("FIELD id=(%s) name=(%s)", f_id, meta['name'])
 
         if len(value) == 0:
             fields[f_id] = None
@@ -215,7 +216,7 @@ def command_issue_change(issue: jira.resources.Issue,
             if not dry_run:
                 issue.update(fields=fields)
             else:
-                jiramail.verbose(3, pprint.pformat(fields))
+                logger.debug(pprint.pformat(fields))
 
     except jira.exceptions.JIRAError as e:
         err = e.response.json()["errors"]
@@ -250,7 +251,7 @@ def command_issue_create(subject: str,
 
     try:
         if dry_run:
-            jiramail.verbose(3, pprint.pformat(fields))
+            logger.debug(pprint.pformat(fields))
 
             issue = jira.resources.Issue(options={},
                                          session=jira.resilientsession.ResilientSession())
@@ -429,17 +430,17 @@ def process_commands(mail: email.message.Message, fd: TextIO,
     commands, content = parse_commands(fd)
 
     for command in commands:
-        jiramail.verbose(2, f"processing command: {command.words}")
+        logger.debug("processing command: %s", command.words)
 
         if isinstance(command.error, jiramail.Error):
-            jiramail.verbose(0, f"{command.error.message}")
+            logger.critical("%s", command.error.message)
             ret = False
             continue
 
         if command.name() == "issue":
             r = command_issue(mail, content, command.args())
             if isinstance(r, jiramail.Error):
-                jiramail.verbose(0, f"{r.message}")
+                logger.critical("%s", r.message)
                 command.error = r
                 ret = False
 
@@ -508,20 +509,19 @@ def process_mail(mail: email.message.Message,
 def main(cmdargs: argparse.Namespace) -> int:
     global dry_run, no_reply
 
-    jiramail.verbosity = cmdargs.verbose
     dry_run = cmdargs.dry_run
     no_reply = cmdargs.no_reply
 
     config = jiramail.read_config()
 
     if isinstance(config, jiramail.Error):
-        jiramail.verbose(0, f"{config.message}")
+        logger.critical("%s", config.message)
         return jiramail.EX_FAILURE
 
     try:
         jiramail.jserv = jiramail.Connection(config.get("jira", {}))
     except Exception as e:
-        jiramail.verbose(0, f"unable to connect to jira: {e}")
+        logger.critical("unable to connect to jira: %s", e)
         return jiramail.EX_FAILURE
 
     rc = jiramail.EX_SUCCESS
@@ -532,7 +532,7 @@ def main(cmdargs: argparse.Namespace) -> int:
         try:
             mbox = jiramail.Mailbox(cmdargs.mailbox)
         except Exception as e:
-            jiramail.verbose(0, f"unable to open mailbox: {e}")
+            logger.critical("unable to open mailbox: %s", e)
             return jiramail.EX_FAILURE
 
         for key in mbox.iterkeys():

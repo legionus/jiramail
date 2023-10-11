@@ -3,6 +3,7 @@
 
 import configparser
 import email
+import logging
 import mailbox
 import os
 import os.path
@@ -22,6 +23,8 @@ __VERSION__ = '1'
 EX_SUCCESS = 0 # Successful exit status.
 EX_FAILURE = 1 # Failing exit status.
 
+logger = logging.getLogger("jiramail")
+
 
 class Error:
     def __init__(self, message: str):
@@ -30,7 +33,7 @@ class Error:
 
 class Connection:
     def __init__(self, config_jira: Dict[str, Any]):
-        verbose(2, "connecting to JIRA ...")
+        logger.debug("connecting to JIRA ...")
 
         self.config = config_jira
         jira_auth = self.config.get("auth", "<missing>")
@@ -49,7 +52,7 @@ class Connection:
             case _:
                 raise KeyError(f"unknown method: jira.auth: {jira_auth}")
 
-        verbose(1, "connected to JIRA")
+        logger.info("connected to JIRA")
 
         self.fields_by_name: Dict[str, Any] = {}
 
@@ -73,7 +76,7 @@ jserv: Connection
 
 class Mailbox:
     def __init__(self, path: str):
-        verbose(2, f"openning the mailbox {path} ...")
+        logger.debug("openning the mailbox `%s' ...", path)
 
         self.mbox = mailbox.mbox(path)
         self.msgid = {}
@@ -84,7 +87,7 @@ class Mailbox:
                 msg_id = mail.get("Message-Id")
                 self.msgid[msg_id] = True
 
-        verbose(1, "mailbox is ready")
+        logger.info("mailbox is ready")
 
     def get_message(self, key: str) -> mailbox.mboxMessage:
         return self.mbox.get_message(key)
@@ -106,29 +109,20 @@ class Mailbox:
         self.mbox.close()
 
 
-verbosity: int = 0
-
-
-def verbose(level: int, text: str) -> None:
-    if verbosity >= level:
-        print(time.strftime("[%H:%M:%S]"), f"level={level}", text,
-              file=sys.stderr, flush=True)
-
-
 def _run_command(cmdargs: List[str], stdin: Optional[bytes] = None,
                  rundir: Optional[str] = None) -> Tuple[int, bytes, bytes]:
     if rundir:
-        verbose(2, f"changing dir to {rundir}")
+        logger.debug("changing dir to %s", rundir)
         curdir = os.getcwd()
         os.chdir(rundir)
     else:
         curdir = None
 
-    verbose(2, f"running {cmdargs}")
+    logger.debug("running %s", cmdargs)
     sp = subprocess.Popen(cmdargs, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
     (output, error) = sp.communicate(input=stdin)
     if curdir:
-        verbose(2, f"changing back into {curdir}")
+        logger.debug("changing back into %s", curdir)
         os.chdir(curdir)
 
     return sp.returncode, output, error
@@ -149,7 +143,7 @@ def git_run_command(gitdir: Optional[str], args: List[str],
 
     if len(err.strip()):
         error = err.decode(errors="replace")
-        verbose(0, f"Stderr: {error}")
+        logger.critical("Stderr: %s", error)
         output += error
 
     return ecode, output
@@ -177,6 +171,7 @@ def parse_config(file: str) -> Dict[str, Any]:
 
     return config
 
+
 def read_config() -> Dict[str, Any] | Error:
     config = None
 
@@ -186,7 +181,7 @@ def read_config() -> Dict[str, Any] | Error:
         if not os.path.exists(config_file):
             continue
 
-        verbose(2, f"picking config file `{config_file}' ...")
+        logger.debug("picking config file `%s' ...", config_file)
 
         config = parse_config(config_file)
         break
@@ -194,5 +189,5 @@ def read_config() -> Dict[str, Any] | Error:
     if not config:
         return Error("config file not found")
 
-    verbose(1, "config has been read")
+    logger.info("config has been read")
     return config
