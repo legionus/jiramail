@@ -191,3 +191,16 @@ def read_config() -> Dict[str, Any] | Error:
 
     logger.info("config has been read")
     return config
+
+
+def setup_logger(logger: logging.Logger, level: int, fmt: str) -> logging.Logger:
+    formatter = logging.Formatter(fmt=fmt, datefmt="%H:%M:%S")
+
+    handler = logging.StreamHandler()
+    handler.setLevel(level)
+    handler.setFormatter(formatter)
+
+    logger.setLevel(level)
+    logger.addHandler(handler)
+
+    return logger

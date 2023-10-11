@@ -5,13 +5,50 @@
 __author__ = 'Alexey Gladkov <gladkov.alexey@gmail.com>'
 
 import argparse
+import multiprocessing
 import re
+
+from typing import Dict, List, Any
 
 import jiramail
 import jiramail.mbox
 
 logger = jiramail.logger
 config_section = "sub"
+
+
+def sync_mailbox(config: Dict[str, Any], mailbox: str, queries: Dict[str, List[str]]) -> int:
+    logger = jiramail.setup_logger(multiprocessing.get_logger(),
+                                   level=jiramail.logger.level,
+                                   fmt="[%(asctime)s] pid=%(process)d: %(message)s")
+    jiramail.logger = logger
+    jiramail.mbox.logger = logger
+
+    logger.critical("process started for `%s'", mailbox)
+
+    try:
+        jiramail.jserv = jiramail.Connection(config.get("jira", {}))
+    except Exception as e:
+        logger.critical("unable to connect to jira: %s", e)
+        return jiramail.EX_FAILURE
+
+    try:
+        mbox = jiramail.Mailbox(mailbox)
+    except Exception as e:
+        logger.critical("unable to open mailbox: %s", e)
+        return jiramail.EX_FAILURE
+
+    for target in queries.keys():
+        logger.info("syncing subscription `%s' to `%s' ...", target, mailbox)
+
+        for query in queries[target]:
+            jiramail.mbox.process_query(query, mbox)
+
+        logger.critical("section `%s' synced", target)
+
+    mbox.close()
+
+    return jiramail.EX_SUCCESS
 
 
 # pylint: disable-next=unused-argument
@@ -25,13 +62,7 @@ def main(cmdargs: argparse.Namespace) -> int:
     if config_section not in config:
         return jiramail.EX_SUCCESS
 
-    try:
-        jiramail.jserv = jiramail.Connection(config.get("jira", {}))
-    except Exception as e:
-        logger.critical("unable to connect to jira: %s", e)
-        return jiramail.EX_FAILURE
-
-    ret = jiramail.EX_SUCCESS
+    mailboxes: Dict[str, Dict[str, List[str]]] = {}
 
     for target in config[config_section]:
         section = config[config_section][target]
@@ -43,29 +74,40 @@ def main(cmdargs: argparse.Namespace) -> int:
         if "mbox" not in section:
             logger.critical("section `%s.%s' does not contain the 'mbox' parameter which specifies the output mbox file.",
                             config_section, target)
-            ret = jiramail.EX_FAILURE
-            continue
+            return jiramail.EX_FAILURE
 
         mailbox = section["mbox"]
 
-        logger.info("syncing section `%s' to `%s' ...", target, mailbox)
+        if mailbox not in mailboxes:
+            mailboxes[mailbox] = {}
 
-        try:
-            mbox = jiramail.Mailbox(mailbox)
-        except Exception as e:
-            logger.critical("unable to open mailbox: %s", e)
-            ret = jiramail.EX_FAILURE
-            continue
+        if target not in mailboxes[mailbox]:
+            mailboxes[mailbox][target] = []
 
         if "assignee" in section:
             username = section["assignee"]
-            jiramail.mbox.process_query(f"assignee = '{username}'", mbox)
+            mailboxes[mailbox][target].append(f"assignee = '{username}'")
 
         if "query" in section:
-            jiramail.mbox.process_query(section["query"], mbox)
+            mailboxes[mailbox][target].append(section["query"])
 
-        mbox.close()
+    nprocs = min(5, len(mailboxes.keys()))
 
-        logger.critical("section `%s' synced", target)
+    if nprocs == 0:
+        return jiramail.EX_SUCCESS
+
+    ret = jiramail.EX_SUCCESS
+
+    with multiprocessing.Pool(processes=nprocs) as pool:
+        results = []
+
+        for mailbox, queries in mailboxes.items():
+            results.append(pool.apply_async(sync_mailbox, (config, mailbox, queries,)))
+
+        for result in results:
+            rc = result.get()
+
+            if rc != jiramail.EX_SUCCESS:
+                ret = rc
 
     return ret

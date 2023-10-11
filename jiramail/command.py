@@ -116,14 +116,7 @@ def setup_logger(cmdargs: argparse.Namespace) -> None:
     if cmdargs.quiet:
         level = logging.CRITICAL
 
-    fmt = logging.Formatter(fmt="%(asctime)s %(message)s",  datefmt="[%H:%M:%S]")
-
-    handlr = logging.StreamHandler()
-    handlr.setLevel(level)
-    handlr.setFormatter(fmt)
-
-    logger.setLevel(level)
-    logger.addHandler(handlr)
+    jiramail.setup_logger(logger, level=level, fmt="[%(asctime)s] %(message)s")
 
 
 def cmd() -> int:
