@@ -31,73 +31,105 @@ def cmd_subs(cmdargs: argparse.Namespace) -> int:
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("-v", "--verbose",
                         dest="verbose", action='count', default=0,
-                        help="print a message for each action")
+                        help="print a message for each action.")
     parser.add_argument('-q', '--quiet',
                         dest="quiet", action='store_true', default=False,
-                        help='Output critical information only')
+                        help='output critical information only.')
     parser.add_argument("-V", "--version",
                         action='version',
+                        help="show program's version number and exit.",
                         version=jiramail.__VERSION__)
+    parser.add_argument("-h", "--help",
+                        action='help',
+                        help="show this help message and exit.")
 
 
 def setup_parser() -> argparse.ArgumentParser:
-    # noinspection PyTypeChecker
+    epilog = "Report bugs to authors."
+
+    description = """\
+The utility provides transport between JIRA and mailbox. It saves JIRA issues in
+mailbox format. Issues are saved along with all comments. Changes made to the
+issue are also saved in the form of emails. All issue changes are grouped into
+one thread.
+
+Changes are made to JIRA by executing commands that are read from emails from
+the mailbox or from stdin.
+"""
     parser = argparse.ArgumentParser(
             prog="jiramail",
-            formatter_class=argparse.RawDescriptionHelpFormatter,
-            description="""
-Saves JIRA issues in mailbox format. Issues are saved along with all comments.
-Changes made to the issue are also saved in the form of emails.
-""",
-            epilog="Report bugs to authors.",
+            formatter_class=argparse.RawTextHelpFormatter,
+            description=description,
+            epilog=epilog,
+            add_help=False,
             allow_abbrev=True)
 
     add_common_arguments(parser)
 
-    subparsers = parser.add_subparsers(dest="subcmd", help="sub-command help")
+    subparsers = parser.add_subparsers(dest="subcmd", help="")
 
     # jiramail mbox
+    sp0_description = """\
+retrieves one or more jira issues as an mailbox file. The entire history of
+changes will also be saved.
+
+"""
     sp0 = subparsers.add_parser("mbox",
-                                help="download one or more jira issue as an mbox file",
-                                epilog="Report bugs to authors.")
+                                description=sp0_description,
+                                help=sp0_description,
+                                epilog=epilog,
+                                add_help=False)
     sp0.set_defaults(func=cmd_mbox)
-    add_common_arguments(sp0)
 
     sp0.add_argument("--assignee",
                      dest="assignee", action="append", default=[], metavar="USER",
-                     help="search for all issues that belong to the USER")
+                     help="search for all issues that belong to the USER.")
     sp0.add_argument("--query",
                      dest="queries", action="append", default=[], metavar="JQL",
                      help="jira query string.")
     sp0.add_argument("--issue",
                      dest="issues", action="append", default=[], metavar="ISSUE-123",
-                     help="specify the issues to export")
+                     help="specify the issues to export.")
     sp0.add_argument("mailbox",
-                     help="path to mbox where emails should be added")
+                     help="path to mailbox where emails should be added.")
+    add_common_arguments(sp0)
 
     # jiramail change
+    sp1_description = """\
+reads mailbox and makes changes in JIRA. If commands are read from mailbox, then
+by default the utility will add a letter with a report on the executed commands.
+
+"""
     sp1 = subparsers.add_parser("change",
-                                help="reads mailbox and makes changes in JIRA.",
-                                epilog="Report bugs to authors.")
+                                description=sp1_description,
+                                help=sp1_description,
+                                epilog=epilog,
+                                add_help=False)
     sp1.set_defaults(func=cmd_change)
-    add_common_arguments(sp1)
 
     sp1.add_argument("-n", "--dry-run",
                      dest="dry_run", action="store_true",
-                     help="do not act, just print what would happen")
+                     help="do not act, just print what would happen.")
     sp1.add_argument("-r", "--no-reply",
                      dest="no_reply", action="store_true",
-                     help="do not add a reply message with the status of command execution")
+                     help="do not add a reply message with the status of command execution.")
     sp1.add_argument("-s", "--stdin",
                      dest="stdin", action="store_true",
-                     help="accept a mail stream on standard input, process commands from it and write it to mailbox")
+                     help="accept a mail stream on standard input, process commands from it and write it to mailbox.")
     sp1.add_argument("mailbox",
-                     help="path to mbox with commands")
+                     help="path to mailbox with commands.")
+    add_common_arguments(sp1)
 
     # jiramail subs
+    sp2_description = """\
+receives updates based on saved queries. Saved queries aka substriptions are
+read from the configuration file.
+"""
     sp2 = subparsers.add_parser("subs",
-                                help="synchronizes subscriptions with saved queries with their mboxes.",
-                                epilog="Report bugs to authors.")
+                                description=sp2_description,
+                                help=sp2_description,
+                                epilog=epilog,
+                                add_help=False)
     sp2.set_defaults(func=cmd_subs)
     add_common_arguments(sp2)
 
