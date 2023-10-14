@@ -5,6 +5,8 @@
 __author__ = 'Alexey Gladkov <gladkov.alexey@gmail.com>'
 
 import argparse
+import collections
+import difflib
 import email
 import email.utils
 import re
@@ -316,6 +318,45 @@ def comment_email(issue: jira.resources.Issue, comment: jira.resources.Comment,
     return mail
 
 
+def attach_description_diff(mail: email.message.EmailMessage,
+                            item: jira.resources.PropertyHolder) -> None:
+    if not hasattr(item, "fromString") or \
+       not hasattr(item, "toString"):
+        return
+
+    old = item.fromString or ""
+    new = item.toString or ""
+
+    diff = difflib.ndiff(old.splitlines(keepends=True),
+                         new.splitlines(keepends=True))
+
+    max_context = 3
+    changes = []
+
+    context: collections.deque[str] = collections.deque(maxlen=max_context)
+    context_after: bool = False
+
+    for line in diff:
+        if not line.startswith(" "):
+            while len(context) > 0:
+                changes.append(context.popleft())
+            changes.append(line)
+            context_after = True
+        else:
+            if context_after and len(context) == max_context:
+                while len(context) > 0:
+                    changes.append(context.popleft())
+                context_after = False
+            context.append(line)
+
+    while context_after and len(context) > 0:
+        changes.append(context.popleft())
+
+    mail.add_attachment("".join(changes).encode(),
+                        filename="description.diff",
+                        maintype="text", subtype="x-diff")
+
+
 def add_issue(issue: jira.resources.Issue, mbox: jiramail.Mailbox) -> None:
     logger.debug("processing issue %s ...", issue.key)
     # pprint.pprint(issue.raw)
@@ -369,6 +410,7 @@ def add_issue(issue: jira.resources.Issue, mbox: jiramail.Mailbox) -> None:
 
                     mail = issue_email(issue, date, User(prop.author), subject,
                                        item.fromString or "")
+                    attach_description_diff(mail, item)
                     mbox.append(mail)
 
                     date = prop.created
