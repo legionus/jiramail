@@ -85,6 +85,10 @@ def has_attrs(o: object, attrs: List[str]) -> bool:
     return True
 
 
+def repack_list(s: str, delim: str) -> str:
+    return ", ".join(map(lambda b: f'"{b.strip()}"', re.split(delim, s)))
+
+
 def get_issue_field(issue: jira.resources.Issue, name: str) -> Optional[Any]:
     try:
         return issue.get_field(field_name=name)
@@ -224,6 +228,30 @@ def changes_email(issue: jira.resources.Issue, change_id: str, date: str, author
     old_len = 0
 
     for item in changes:
+        meta = jiramail.jserv.field_by_name(item.field.lower(), {})
+
+        item.fromString = item.fromString or ''
+        item.toString = item.toString or ''
+
+        if "schema" in meta and meta["schema"]["type"] == "array":
+            match meta["schema"]["items"]:
+                case "option":
+                    delim = r','
+                case "component":
+                    delim = ""
+                case _:
+                    delim = r'\s+'
+
+            if delim:
+                item.fromString = repack_list(item.fromString, delim)
+                item.toString = repack_list(item.toString, delim)
+            else:
+                item.fromString = f"\"{item.fromString}\""
+                item.toString = f"\"{item.toString}\""
+        else:
+            item.fromString = f"\"{item.fromString}\""
+            item.toString = f"\"{item.toString}\""
+
         if name_len < len(item.field):
             name_len = len(item.field)
         if item.fromString and old_len < len(item.fromString):
@@ -236,8 +264,8 @@ def changes_email(issue: jira.resources.Issue, change_id: str, date: str, author
 
     body = []
     for item in changes:
-        old = item.fromString or '""'
-        new = item.toString or '""'
+        old = item.fromString
+        new = item.toString
         body.append(f"{item.field:>{name_len}}: {old:>{old_len}} -> {new}")
 
     body.append("")
