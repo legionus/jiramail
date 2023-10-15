@@ -65,13 +65,31 @@ class User:
             self.addr = user.emailAddress
 
 
+class PropertyItem:
+    def __init__(self, item: jira.resources.PropertyHolder):
+        self.field = getattr(item, "field", "") or ""
+        self.fieldtype = getattr(item, "fieldtype", "") or ""
+        self.fromString = getattr(item, "fromString", "") or ""
+        self.toString = getattr(item, "toString", "") or ""
+
+    def is_field_change(self) -> bool:
+        return self.field != "" and self.fieldtype != ""
+
+
 class Property:
     def __init__(self, prop: jira.resources.PropertyHolder):
-        self.prop = prop
-        self.id = getattr(prop, "id")
-        self.created = getattr(prop, "created")
-        self.author = getattr(prop, "author")
-        self.items = getattr(prop, "items", [])
+        self.id = getattr(prop, "id", "") or ""
+        self.created = getattr(prop, "created", "") or ""
+        self.author = User(getattr(prop, "author", {}) or {})
+        self.items: List[PropertyItem] = []
+
+        for it in getattr(prop, "items", []) or []:
+            item = PropertyItem(it)
+            if item.is_field_change():
+                self.items.append(item)
+
+    def is_valid(self) -> bool:
+        return self.author.addr != "unknown" and self.created != "" and len(self.items) > 0
 
 
 def chain(*iterables: Iterable[Any]) -> Iterator[Any]:
@@ -208,8 +226,10 @@ def issue_email(issue: jira.resources.Issue, date: str, author: User,
     return mail
 
 
-def changes_email(issue: jira.resources.Issue, change_id: str, date: str, author: User,
-                  subject: Subject, changes: List[Any]) -> email.message.EmailMessage:
+def changes_email(issue: jira.resources.Issue, change_id: str, date: str,
+                  author: User,
+                  subject: Subject,
+                  changes: List[PropertyItem]) -> email.message.EmailMessage:
     mail = email.message.EmailMessage()
 
     msg_id = f"<{issue.id}-{change_id}@changes.issue.jira>"
@@ -231,9 +251,6 @@ def changes_email(issue: jira.resources.Issue, change_id: str, date: str, author
 
     for item in changes:
         meta = jiramail.jserv.field_by_name(item.field.lower(), {})
-
-        item.fromString = item.fromString or ''
-        item.toString = item.toString or ''
 
         if "schema" in meta and meta["schema"]["type"] == "array":
             match meta["schema"]["items"]:
@@ -319,16 +336,9 @@ def comment_email(issue: jira.resources.Issue, comment: jira.resources.Comment,
 
 
 def attach_description_diff(mail: email.message.EmailMessage,
-                            item: jira.resources.PropertyHolder) -> None:
-    if not hasattr(item, "fromString") or \
-       not hasattr(item, "toString"):
-        return
-
-    old = item.fromString or ""
-    new = item.toString or ""
-
-    diff = difflib.ndiff(old.splitlines(keepends=True),
-                         new.splitlines(keepends=True))
+                            item: PropertyItem) -> None:
+    diff = difflib.ndiff(item.fromString.splitlines(keepends=True),
+                         item.toString.splitlines(keepends=True))
 
     max_context = 3
     changes = []
@@ -366,7 +376,7 @@ def add_issue(issue: jira.resources.Issue, mbox: jiramail.Mailbox) -> None:
     description = str(get_issue_field(issue, "description"))
 
     history: Optional[Property] = None
-    changes: List[str] = []
+    changes: List[PropertyItem] = []
 
     subject = Subject(issue.key, summary)
 
@@ -376,11 +386,10 @@ def add_issue(issue: jira.resources.Issue, mbox: jiramail.Mailbox) -> None:
             reverse=False):
 
         if isinstance(el, jira.resources.PropertyHolder):
-            if not has_attrs(el, ["author", "created", "items"]):
-                # The object doesn't look like an issue state change.
-                continue
-
             prop = Property(el)
+
+            if not prop.is_valid():
+                continue
 
             if history:
                 t1 = datetime.fromisoformat(history.created)
@@ -389,26 +398,23 @@ def add_issue(issue: jira.resources.Issue, mbox: jiramail.Mailbox) -> None:
             t2 = datetime.fromisoformat(prop.created)
 
             if changes and history and (
-                    prop.author.emailAddress != history.author.emailAddress or
+                    prop.author.addr != history.author.addr or
                     (t2 - t1) >= timedelta(hours=1)):
                 mail = changes_email(issue, history.id, history.created,
-                                     User(history.author), subject, changes)
+                                     history.author, subject, changes)
                 mbox.append(mail)
                 changes = []
 
             for item in prop.items:
-                if not has_attrs(item, ["fieldtype", "field"]):
-                    continue
-
                 if item.fieldtype == "jira" and item.field == "description":
                     if changes:
                         mail = changes_email(issue, prop.id + "-0",
-                                             prop.created, User(prop.author),
+                                             prop.created, prop.author,
                                              subject, changes)
                         mbox.append(mail)
                         changes = []
 
-                    mail = issue_email(issue, date, User(prop.author), subject,
+                    mail = issue_email(issue, date, prop.author, subject,
                                        item.fromString or "")
                     attach_description_diff(mail, item)
                     mbox.append(mail)
@@ -443,7 +449,7 @@ def add_issue(issue: jira.resources.Issue, mbox: jiramail.Mailbox) -> None:
 
     if history and changes:
         mail = changes_email(issue, history.id, history.created,
-                             User(history.author), subject, changes)
+                             history.author, subject, changes)
         mbox.append(mail)
 
     history = None
