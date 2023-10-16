@@ -14,9 +14,11 @@ import re
 from datetime import datetime
 from datetime import timedelta
 
-from typing import Optional, Dict, List, Tuple, Union, Any
+from typing import Optional, Dict, List, Sequence, Union, Any
 
 from collections.abc import Iterator, Iterable
+
+import tabulate
 
 import jira
 import jira.resources
@@ -129,13 +131,13 @@ def get_date(data: str) -> str:
 
 
 def get_issue_info(issue: jira.resources.Issue,
-                   items: List[Dict[str, Any]]) -> List[Tuple[str, str]]:
+                   items: List[Dict[str, Any]]) -> List[List[str]]:
     ret = []
     for item in items:
         field = jiramail.jserv.field_by_name(item['name'], {})
         value = get_issue_field(issue, item['name'])
         if value:
-            ret.append((field['name'], item['getter'](value)))
+            ret.append([field['name'], item['getter'](value)])
     return ret
 
 
@@ -172,6 +174,14 @@ def decode_markdown(message: str) -> List[str]:
     return body
 
 
+def get_table(data: List[List[Any]],
+              headers: Sequence[str] = (),
+              colalign: Optional[List[Optional[str]]] = None,
+              maxcolwidths: Optional[List[int]] = None) -> str:
+    return tabulate.tabulate(data, tablefmt="presto", disable_numparse=True,
+                             headers=headers, colalign=colalign, maxcolwidths=maxcolwidths)
+
+
 def issue_email(issue: jira.resources.Issue, date: str, author: User,
                 subject: Subject, message: str) -> email.message.EmailMessage:
     mail = email.message.EmailMessage()
@@ -200,17 +210,16 @@ def issue_email(issue: jira.resources.Issue, date: str, author: User,
     body = []
 
     info = get_issue_info(issue, [
-        {"name": "issuetype", "getter": lambda a: a.name},
-        {"name": "severity",  "getter": lambda a: a.value},
-        {"name": "priority",  "getter": lambda a: a.name},
+        {"name": "issuetype", "getter": lambda a: f'"{a.name}"'},
+        {"name": "severity",  "getter": lambda a: f'"{a.value}"'},
+        {"name": "priority",  "getter": lambda a: f'"{a.name}"'},
         {"name": "labels",    "getter": lambda a: ", ".join(map(lambda b: f'"{b}"', a))},
         {"name": "keywords",  "getter": lambda a: ", ".join(map(lambda b: f'"{b}"', a))},
         ])
     if info:
-        name_width = max([len(el[0]) for el in info]) + 1
-        for name, value in info:
-            body.append(f"{name:>{name_width}}: {value}")
-
+        body.append(get_table(info,
+                              colalign=["right", "left"],
+                              maxcolwidths=[40, 60]))
         body.append("---")
         body.append("")
 
@@ -246,53 +255,73 @@ def changes_email(issue: jira.resources.Issue, change_id: str, date: str,
     mail.add_header("X-Jiramail-Issue-Id", f"{issue.id}")
     mail.add_header("X-Jiramail-Issue-Key", f"{issue.key}")
 
-    name_len = 0
-    old_len = 0
+    textarea: Dict[str, PropertyItem] = collections.OrderedDict()
+    table = []
 
     for item in changes:
-        meta = jiramail.jserv.field_by_name(item.field.lower(), {})
-
-        if "schema" in meta and meta["schema"]["type"] == "array":
-            match meta["schema"]["items"]:
-                case "option":
-                    delim = r','
-                case "component":
-                    delim = ""
-                case _:
-                    delim = r'\s+'
-
-            if delim:
-                item.fromString = repack_list(item.fromString, delim)
-                item.toString = repack_list(item.toString, delim)
-            else:
-                item.fromString = f"\"{item.fromString}\""
-                item.toString = f"\"{item.toString}\""
-        else:
-            item.fromString = f"\"{item.fromString}\""
-            item.toString = f"\"{item.toString}\""
-
-        if name_len < len(item.field):
-            name_len = len(item.field)
-        if item.fromString and old_len < len(item.fromString):
-            old_len = len(item.fromString)
         if item.fieldtype == "jira" and item.field == "status" and item.toString:
             status = f" [{item.toString}]"
 
-    name_len += 1
-    old_len += 1
+        meta = jiramail.jserv.field_by_name(item.field.lower(), {})
+        normalized = False
+
+        if "schema" in meta:
+            match meta["schema"]["type"]:
+                case "array":
+                    match meta["schema"]["items"]:
+                        case "option":
+                            delim = r','
+                        case "component":
+                            delim = ""
+                        case _:
+                            delim = r'\s+'
+
+                    if delim:
+                        item.fromString = repack_list(item.fromString, delim)
+                        item.toString = repack_list(item.toString, delim)
+                        normalized = True
+
+                case "string":
+                    if "custom" in meta["schema"] and meta["schema"]["custom"].endswith(":textarea"):
+                        if item.field in textarea:
+                            textarea[item.field].toString = item.toString
+                        else:
+                            textarea[item.field] = item
+                        continue
+
+        if not normalized:
+            item.fromString = f"\"{item.fromString}\""
+            item.toString = f"\"{item.toString}\""
+
+        table.append([meta.get("name", item.field), item.fromString, item.toString])
 
     body = []
-    for item in changes:
-        old = item.fromString
-        new = item.toString
-        body.append(f"{item.field:>{name_len}}: {old:>{old_len}} -> {new}")
 
-    body.append("")
+    if table:
+        body.append(get_table(table,
+                              headers=["What","Removed", "Added"],
+                              colalign=["right", "left", "left"],
+                              maxcolwidths=[40, 60, 60]))
+        if textarea:
+            body.append("---")
+
+    for item in textarea.values():
+        header = f"JIRA FIELD: {item.field}"
+        if item.fromString:
+            header += " (diff attached)"
+        body.append(f"[-- {header} --]")
+        body.append(item.toString)
+        body.append("")
+
     body.append("-- ")
     body.append("")
 
     mail.add_header("Subject", str(subject) + status)
     mail.set_content("\n".join(body))
+
+    for item in textarea.values():
+        if item.fromString:
+            attach_diff(mail, item, f"{item.field}.diff")
 
     return mail
 
@@ -335,8 +364,9 @@ def comment_email(issue: jira.resources.Issue, comment: jira.resources.Comment,
     return mail
 
 
-def attach_description_diff(mail: email.message.EmailMessage,
-                            item: PropertyItem) -> None:
+def attach_diff(mail: email.message.EmailMessage,
+                item: PropertyItem,
+                filename: str) -> None:
     diff = difflib.ndiff(item.fromString.splitlines(keepends=True),
                          item.toString.splitlines(keepends=True))
 
@@ -363,7 +393,7 @@ def attach_description_diff(mail: email.message.EmailMessage,
         changes.append(context.popleft())
 
     mail.add_attachment("".join(changes).encode(),
-                        filename="description.diff",
+                        filename=filename,
                         maintype="text", subtype="x-diff")
 
 
@@ -416,7 +446,7 @@ def add_issue(issue: jira.resources.Issue, mbox: jiramail.Mailbox) -> None:
 
                     mail = issue_email(issue, date, prop.author, subject,
                                        item.fromString or "")
-                    attach_description_diff(mail, item)
+                    attach_diff(mail, item, "description.diff")
                     mbox.append(mail)
 
                     date = prop.created
