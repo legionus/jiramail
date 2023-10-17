@@ -28,6 +28,11 @@ def cmd_subs(cmdargs: argparse.Namespace) -> int:
     return jiramail.subs.main(cmdargs)
 
 
+def cmd_info(cmdargs: argparse.Namespace) -> int:
+    import jiramail.info
+    return jiramail.info.main(cmdargs)
+
+
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("-v", "--verbose",
                         dest="verbose", action='count', default=0,
@@ -124,6 +129,7 @@ by default the utility will add a letter with a report on the executed commands.
     sp2_description = """\
 receives updates based on saved queries. Saved queries aka substriptions are
 read from the configuration file.
+
 """
     sp2 = subparsers.add_parser("subs",
                                 description=sp2_description,
@@ -132,6 +138,22 @@ read from the configuration file.
                                 add_help=False)
     sp2.set_defaults(func=cmd_subs)
     add_common_arguments(sp2)
+
+    # jiramail info
+    sp3_description = """\
+retrieves issue information from the jira API.
+"""
+    sp3 = subparsers.add_parser("info",
+                                description=sp3_description,
+                                help=sp3_description,
+                                epilog=epilog,
+                                add_help=False)
+    sp3.set_defaults(func=cmd_info)
+
+    sp3.add_argument("--issue",
+                     dest="issue", action="store", default=None, metavar="ISSUE-123",
+                     help="specify the issue to export.")
+    add_common_arguments(sp3)
 
     return parser
 
