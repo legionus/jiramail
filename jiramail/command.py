@@ -33,6 +33,11 @@ def cmd_info(cmdargs: argparse.Namespace) -> int:
     return jiramail.info.main(cmdargs)
 
 
+def cmd_smtp(cmdargs: argparse.Namespace) -> int:
+    import jiramail.smtp
+    return jiramail.smtp.main(cmdargs)
+
+
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("-v", "--verbose",
                         dest="verbose", action='count', default=0,
@@ -142,6 +147,7 @@ read from the configuration file.
     # jiramail info
     sp3_description = """\
 retrieves issue information from the jira API.
+
 """
     sp3 = subparsers.add_parser("info",
                                 description=sp3_description,
@@ -154,6 +160,29 @@ retrieves issue information from the jira API.
                      dest="issue", action="store", default=None, metavar="ISSUE-123",
                      help="specify the issue to export.")
     add_common_arguments(sp3)
+
+    # jiramail smtp
+    sp4_description = """\
+fake smtp server for receiving commands in sent emails. This is an alternative,
+easier way to send commands.
+"""
+    sp4 = subparsers.add_parser("smtp",
+                                description=sp4_description,
+                                help=sp4_description,
+                                epilog=epilog,
+                                add_help=False)
+    sp4.set_defaults(func=cmd_smtp)
+
+    sp4.add_argument("-n", "--dry-run",
+                     dest="dry_run", action="store_true",
+                     help="do not act, just print what would happen.")
+    sp4.add_argument("-1", "--one-message",
+                     dest="one_message", action="store_true",
+                     help="exit after processing one incoming email.")
+    sp4.add_argument("-m", "--mailbox",
+                     dest="mailbox", action="store", default="",
+                     help="path to mailbox to store a reply messages with the status of command execution.")
+    add_common_arguments(sp4)
 
     return parser
 

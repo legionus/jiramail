@@ -351,7 +351,9 @@ class Command:
         return []
 
     def add_raw(self, line: str) -> None:
-        if line.endswith("\n"):
+        if line.endswith("\r\n"):
+            self.raw.append(line[:-2])
+        elif line.endswith("\n"):
             self.raw.append(line[:-1])
         else:
             self.raw.append(line)

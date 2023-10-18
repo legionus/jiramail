@@ -97,6 +97,22 @@ jira issue <ISSUE-123> change \
     <field3> set <value3>
 ```
 
+### Sub-Command: jiramail smtp
+
+An alternative variant for applying changes. If your MUA does not have settings
+to change the email sending utility (usually sendmail), then you can run a fake
+smtp server.
+
+You can specify a login and password to restrict access to smtp and jira
+changes:
+
+```ini
+[smtp]
+user = <username>
+password = <secret>
+port = 10025
+```
+
 ## License
 
 jiramail is licensed under the GNU General Public License (GPL), version 3.
