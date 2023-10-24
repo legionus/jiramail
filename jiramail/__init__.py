@@ -79,6 +79,8 @@ class Mailbox:
         logger.debug("openning the mailbox `%s' ...", path)
 
         self.mbox = mailbox.mbox(path)
+        self.path = os.path.abspath(os.path.expanduser(path))
+        self.n_msgs = 0
         self.msgid = {}
 
         for key in self.mbox.iterkeys():
@@ -86,11 +88,19 @@ class Mailbox:
             if "Message-Id" in mail:
                 msg_id = mail.get("Message-Id")
                 self.msgid[msg_id] = True
+            self.n_msgs += 1
 
         logger.info("mailbox is ready")
 
     def get_message(self, key: str) -> mailbox.mboxMessage:
         return self.mbox.get_message(key)
+
+    def del_message(self, key: str) -> None:
+        mail = self.get_message(key)
+        msg_id = mail.get("Message-Id")
+
+        self.mbox.remove(key)
+        del self.msgid[msg_id]
 
     def update_message(self, key: str, mail: email.message.Message) -> None:
         self.mbox.update([(key, mail)])
@@ -104,6 +114,9 @@ class Mailbox:
 
     def iterkeys(self) -> Iterator[Any]:
         return self.mbox.iterkeys()
+
+    def sync(self) -> None:
+        self.mbox.flush()
 
     def close(self) -> None:
         self.mbox.close()

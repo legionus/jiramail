@@ -5,21 +5,15 @@
 __author__ = 'Alexey Gladkov <gladkov.alexey@gmail.com>'
 
 import argparse
-import base64
-import binascii
 import email
 import email.message
-import hashlib
-import hmac
-import os
-import random
 import re
 import socket
-import time
 
 from typing import Tuple, Dict, List, Any
 
 import jiramail
+import jiramail.auth as auth
 import jiramail.change
 
 logger = jiramail.logger
@@ -95,36 +89,9 @@ def command_ehlo(state: Dict[str, Any], args: str) -> SMTPAnswer:
     return SMTPAnswer("".join(ans))
 
 
-def command_auth_cram_md5(state: Dict[str, Any]) -> Tuple[bool, SMTPAnswer]:
-    pid = os.getpid()
-    now = time.time_ns()
-    rnd = random.randrange(2**32 - 1)
-
-    shared = f"<{pid}.{now}.{rnd}@jiramail>"
-    shared_base64 = base64.b64encode(shared.encode()).decode()
-
-    send(state["conn"], f"334 {shared_base64}\r\n")
-
-    line = recv_line(state)
-
-    try:
-        buf = base64.standard_b64decode(line).decode()
-    except binascii.Error:
-        return (False, SMTPAnswer("502 Couldn't decode your credentials\r\n"))
-
-    fields = buf.split(" ")
-
-    if len(fields) != 2:
-        return (False, SMTPAnswer("502 Wrong number of fields in the token\r\n"))
-
-    hexdigest = hmac.new(state["password"].encode(),
-                         shared.encode(),
-                         hashlib.md5).hexdigest()
-
-    if hmac.compare_digest(state["user"], fields[0]) and hmac.compare_digest(hexdigest, fields[1]):
-        return (True, SMTPAnswer("235 2.7.0 Authentication successful\r\n"))
-
-    return (False, SMTPAnswer("535 Authentication credentials invalid\r\n"))
+def auth_interact(state: Dict[str, Any], shared: str) -> Any:
+    send(state["conn"], f"334 {shared}\r\n")
+    return recv_line(state)
 
 
 def command_auth(state: Dict[str, Any], args: str) -> SMTPAnswer:
@@ -145,7 +112,10 @@ def command_auth(state: Dict[str, Any], args: str) -> SMTPAnswer:
     # used without the presence of an external security layer such as [TLS].
     match auth_type:
         case "CRAM-MD5":
-            (state["authorized"], ans) = command_auth_cram_md5(state)
+            (state["authorized"], msg) = auth.cram_md5(state["user"], state["password"], auth_interact, state)
+            if not state["authorized"]:
+                return SMTPAnswer(f"535 {msg}\r\n")
+            ans = SMTPAnswer("235 2.7.0 Authentication successful\r\n")
         case _:
             return SMTPAnswer("504 5.5.2 Unrecognized authentication type\r\n")
 

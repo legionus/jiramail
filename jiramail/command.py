@@ -38,6 +38,11 @@ def cmd_smtp(cmdargs: argparse.Namespace) -> int:
     return jiramail.smtp.main(cmdargs)
 
 
+def cmd_imap(cmdargs: argparse.Namespace) -> int:
+    import jiramail.imap
+    return jiramail.imap.main(cmdargs)
+
+
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("-v", "--verbose",
                         dest="verbose", action='count', default=0,
@@ -183,6 +188,19 @@ easier way to send commands.
                      dest="mailbox", action="store", default="",
                      help="path to mailbox to store a reply messages with the status of command execution.")
     add_common_arguments(sp4)
+
+    # jiramail imap
+    sp5_description = """\
+imap server
+"""
+    sp5 = subparsers.add_parser("imap",
+                                description=sp3_description,
+                                help=sp5_description,
+                                epilog=epilog,
+                                add_help=False)
+    sp5.set_defaults(func=cmd_imap)
+    add_common_arguments(sp5)
+
 
     return parser
 

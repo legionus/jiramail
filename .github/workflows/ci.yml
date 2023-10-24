@@ -31,7 +31,7 @@ jobs:
       - name: "Check mypy"
         run: |
           mypy --non-interactive --install-types -c 'import tabulate'
-          mypy --strict jiramail/*.py
+          find jiramail -type f -name '*.py' -a \! -name '*_tab.py' | xargs -r mypy --strict
 
       - name: "Check pylint"
         run: pylint --disable=R --disable=W0603,W0621,W0718 --disable=C0103,C0114,C0115,C0116,C0301,C0415,C3001 jiramail/*.py

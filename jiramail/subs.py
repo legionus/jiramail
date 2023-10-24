@@ -17,6 +17,29 @@ logger = jiramail.logger
 config_section = "sub"
 
 
+def get_mailbox(config: Dict[str, Any], name: str) -> str:
+    if name not in config[config_section]:
+        return ""
+    return str(config[config_section][name]["mbox"])
+
+
+def get_queries(config: Dict[str, Any], name: str) -> List[str]:
+    queries: List[str] = []
+
+    if name not in config[config_section]:
+        return queries
+
+    section = config[config_section][name]
+
+    if "assignee" in section:
+        queries.append(f"assignee = '{section.get('assignee')}'")
+
+    if "query" in section:
+        queries.append(section["query"])
+
+    return queries
+
+
 def sync_mailbox(config: Dict[str, Any], mailbox: str, queries: Dict[str, List[str]]) -> int:
     logger = jiramail.setup_logger(multiprocessing.get_logger(),
                                    level=jiramail.logger.level,
@@ -76,20 +99,12 @@ def main(cmdargs: argparse.Namespace) -> int:
                             config_section, target)
             return jiramail.EX_FAILURE
 
-        mailbox = section["mbox"]
+        mailbox = get_mailbox(config, target)
 
         if mailbox not in mailboxes:
             mailboxes[mailbox] = {}
 
-        if target not in mailboxes[mailbox]:
-            mailboxes[mailbox][target] = []
-
-        if "assignee" in section:
-            username = section["assignee"]
-            mailboxes[mailbox][target].append(f"assignee = '{username}'")
-
-        if "query" in section:
-            mailboxes[mailbox][target].append(section["query"])
+        mailboxes[mailbox][target] = get_queries(config, target)
 
     nprocs = min(5, len(mailboxes.keys()))
 
