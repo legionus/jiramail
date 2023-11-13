@@ -269,7 +269,7 @@ def changes_email(issue: jira.resources.Issue, change_id: str, date: str,
             match meta["schema"]["type"]:
                 case "array":
                     match meta["schema"]["items"]:
-                        case "option":
+                        case "option" | "user":
                             delim = r','
                         case "component":
                             delim = ""
