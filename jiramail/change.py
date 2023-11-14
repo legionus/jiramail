@@ -267,6 +267,20 @@ def command_issue_create(subject: str,
     return issue
 
 
+def find_issue_key(mail: email.message.Message) -> Any:
+    for val in ("X-Jiramail-Issue-Id", "X-Jiramail-Issue-Key"):
+        if val in mail:
+            return mail[val]
+
+    for val in mail.get_all("References", []):
+        for ref in val.split():
+            m = re.match(r'^[<]?v\d+-(?P<issue_id>[^@]+)@issue.jira[>]?', ref)
+            if not m:
+                continue
+            return m.group('issue_id')
+    return ""
+
+
 def command_issue(mail: email.message.Message,
                   content: List[str],
                   args: List[str]) -> None | jiramail.Error:
@@ -293,9 +307,9 @@ def command_issue(mail: email.message.Message,
         return None
 
     if args[0] in ("assign", "comment", "change"):
-        if "X-Jiramail-Issue-Key" not in mail:
-            return jiramail.Error("header with issue number not found. Maybe it's because you don't reply to the generated email.")
-        key = mail["X-Jiramail-Issue-Key"]
+        key = find_issue_key(mail)
+        if not key:
+            return jiramail.Error("issue number not found. Maybe it's because you don't reply to the generated email.")
     else:
         key = args.pop(0)
 
