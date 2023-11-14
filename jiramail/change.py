@@ -465,7 +465,7 @@ def process_commands(mail: email.message.Message, fd: TextIO,
 
         subj = mail.get("Subject")
         if subj:
-            subject.append(subj)
+            subject.append(re.sub(r'[\r\n]', '', subj))
         resp.add_header("Subject", " ".join(subject))
 
         parent_id = mail.get("Message-Id")
