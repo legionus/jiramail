@@ -7,6 +7,7 @@ __author__ = 'Alexey Gladkov <gladkov.alexey@gmail.com>'
 import argparse
 import email
 import email.message
+import email.utils
 import re
 import socket
 
@@ -170,6 +171,13 @@ def command_rcpt(state: Dict[str, Any], args: str) -> SMTPAnswer:
     return SMTPAnswer("250 2.1.5 Ok\r\n")
 
 
+def get_mode(mail: email.message.Message) -> str:
+    for _, addr in email.utils.getaddresses(mail.get_all("To", [])):
+        if addr == "comment@jira":
+            return "comment"
+    return "change"
+
+
 def command_data(state: Dict[str, Any]) -> SMTPAnswer:
     if "user" in state and not state["authorized"]:
         return SMTPAnswer("530 Authentication required\r\n")
@@ -203,9 +211,15 @@ def command_data(state: Dict[str, Any]) -> SMTPAnswer:
 
     replies: List[email.message.EmailMessage] = []
 
-    if not jiramail.change.process_mail(mail, replies):
-        logger.critical("error: mail processing failed")
-        return SMTPAnswer("451 4.3.0 Requested action aborted: local error in processing\r\n")
+    match get_mode(mail):
+        case "comment":
+            if not jiramail.change.comment_mail(mail):
+                logger.critical("error: mail processing failed")
+                return SMTPAnswer("451 4.3.0 Requested action aborted: local error in processing\r\n")
+        case _:
+            if not jiramail.change.process_mail(mail, replies):
+                logger.critical("error: mail processing failed")
+                return SMTPAnswer("451 4.3.0 Requested action aborted: local error in processing\r\n")
 
     if "mbox" in state:
         for reply in replies:

@@ -73,6 +73,8 @@ def command_issue_comment(issue: jira.resources.Issue,
     try:
         if not dry_run:
             jiramail.jserv.jira.add_comment(issue, text)
+        else:
+            logger.critical("add comment to %s: %s", issue.key, text.encode())
 
     except jira.exceptions.JIRAError as e:
         return jiramail.Error(f"unable to add comment to issue {issue.key}: {e}")
@@ -520,6 +522,31 @@ def process_mail(mail: email.message.Message,
             rc = False
 
     return rc
+
+
+def comment_mail(mail: email.message.Message) -> bool:
+    key = find_issue_key(mail)
+    if not key:
+        logger.critical("issue number not found. Maybe it's because you don't reply to the generated email.")
+        return False
+
+    try:
+        issue = jiramail.jserv.jira.issue(key)
+    except jira.exceptions.JIRAError as e:
+        logger.critical("unable to get %s issue: %s", key, e.text)
+        return False
+
+    for part in mail.walk():
+        if part.get_content_type() != "text/plain":
+            continue
+
+        res = command_issue_comment(issue, part.get_payload())
+
+        if isinstance(res, jiramail.Error):
+            logger.critical("%s", res.message)
+            return False
+
+    return True
 
 
 def main(cmdargs: argparse.Namespace) -> int:
