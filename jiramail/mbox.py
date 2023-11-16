@@ -333,22 +333,28 @@ def comment_email(issue: jira.resources.Issue, comment: jira.resources.Comment,
     msg_id = f"<{issue.id}-{comment.id}@comment.issue.jira>"
     parent_id = f"<v1-{issue.id}@issue.jira>"
     subject.action = "C:"
+    cc_header = []
+    reply_to_header = [("Add a comment", "comment@jira")]
 
     mail.add_header("Subject", str(subject))
     mail.add_header("Date", get_date(date))
     mail.add_header("From", str(author))
     mail.add_header("Message-Id", msg_id)
-    mail.add_header("Reply-To", "change@jira")
     mail.add_header("In-Reply-To", parent_id)
     mail.add_header("References", f"{parent_id} {msg_id}")
     mail.add_header("X-Jiramail-Issue-Id", f"{issue.id}")
     mail.add_header("X-Jiramail-Issue-Key", f"{issue.key}")
 
-    body = []
-
     if hasattr(comment, "visibility") and hasattr(comment.visibility, "value"):
-        body.append(f"[Visible only to {comment.visibility.value}]")
-        body.append("---")
+        cc_header.append((f"{comment.visibility.value}",
+                          f"{comment.visibility.type}@visible.comment.jira"))
+
+    if cc_header:
+        mail.add_header("Cc", ", ".join([ email.utils.formataddr(x) for x in cc_header ]))
+
+    mail.add_header("Reply-To", ", ".join([ email.utils.formataddr(x) for x in reply_to_header ]))
+
+    body = []
 
     body += decode_markdown(message)
 

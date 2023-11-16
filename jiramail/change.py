@@ -69,12 +69,15 @@ def command_issue_assign(issue: jira.resources.Issue,
 
 
 def command_issue_comment(issue: jira.resources.Issue,
-                          text: str) -> jira.resources.Issue | jiramail.Error:
+                          text: str,
+                          visibility: Optional[Dict[str, str]]=None) -> jira.resources.Issue | jiramail.Error:
     try:
         if not dry_run:
-            jiramail.jserv.jira.add_comment(issue, text)
+            jiramail.jserv.jira.add_comment(issue=issue, body=text,
+                                            visibility=visibility)
         else:
-            logger.critical("add comment to %s: %s", issue.key, text.encode())
+            logger.critical("add comment to %s (visibility=%s): %s",
+                            issue.key, visibility, text.encode())
 
     except jira.exceptions.JIRAError as e:
         return jiramail.Error(f"unable to add comment to issue {issue.key}: {e}")
@@ -283,6 +286,19 @@ def find_issue_key(mail: email.message.Message) -> Any:
     return ""
 
 
+def find_visibility(mail: email.message.Message) -> Optional[Dict[str, str]]:
+    to_list: List[str] = mail.get_all("To", [])
+    cc_list: List[str] = mail.get_all("Cc", [])
+
+    for val in email.utils.getaddresses(to_list + cc_list):
+        m = re.match(r'^(?P<type>[^@+]+)(\+[^@]+)?@visible.comment.jira', val[1])
+        if not m:
+            continue
+        return {m.group('type'): val[0]}
+
+    return None
+
+
 def command_issue(mail: email.message.Message,
                   content: List[str],
                   args: List[str]) -> None | jiramail.Error:
@@ -333,7 +349,8 @@ def command_issue(mail: email.message.Message,
         case "comment":
             if len(args) < 1:
                 return jiramail.Error("'comment' keyword requires argument")
-            res = command_issue_comment(issue, args[0])
+            res = command_issue_comment(issue, args[0],
+                                        visibility=find_visibility(mail))
         case "change":
             if len(args) % 3 != 0:
                 return jiramail.Error("'change' keyword requires at least 3 arguments")
@@ -530,6 +547,8 @@ def comment_mail(mail: email.message.Message) -> bool:
         logger.critical("issue number not found. Maybe it's because you don't reply to the generated email.")
         return False
 
+    visibility = find_visibility(mail)
+
     try:
         issue = jiramail.jserv.jira.issue(key)
     except jira.exceptions.JIRAError as e:
@@ -540,7 +559,8 @@ def comment_mail(mail: email.message.Message) -> bool:
         if part.get_content_type() != "text/plain":
             continue
 
-        res = command_issue_comment(issue, part.get_payload())
+        res = command_issue_comment(issue, part.get_payload(),
+                                    visibility=visibility)
 
         if isinstance(res, jiramail.Error):
             logger.critical("%s", res.message)
