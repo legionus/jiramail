@@ -107,8 +107,8 @@ def has_attrs(o: object, attrs: List[str]) -> bool:
     return True
 
 
-def repack_list(s: str, delim: str) -> str:
-    return ", ".join(map(lambda b: f'"{b.strip()}"', re.split(delim, s)))
+def make_list(s: str, delim: str) -> Iterator[str]:
+    return map(lambda b: f'"{b.strip()}"', re.split(delim, s))
 
 
 def get_issue_field(issue: jira.resources.Issue, name: str) -> Optional[Any]:
@@ -277,8 +277,8 @@ def changes_email(issue: jira.resources.Issue, change_id: str, date: str,
                             delim = r'\s+'
 
                     if delim:
-                        item.fromString = repack_list(item.fromString, delim)
-                        item.toString = repack_list(item.toString, delim)
+                        item.fromString = ", ".join(sorted(make_list(item.fromString, delim)))
+                        item.toString   = ", ".join(sorted(make_list(item.toString, delim)))
                         normalized = True
 
                 case "string":
